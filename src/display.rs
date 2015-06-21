@@ -22,11 +22,9 @@ impl fmt::Display for Section {
             }
         }
 
-
         for row in &self.rows {
             for cell in row {
                 try!(fmt::Display::fmt(&format!("| {} ", cell), f));
-
             }
             try!(f.write_str("|\n"));
         }
@@ -58,7 +56,13 @@ impl fmt::Display for Value {
                     if first { first = false } else { try!(f.write_str(", ")) }
                     try!(k.fmt(f));
                     try!(f.write_str(" = "));
-                    try!(v.fmt(f));
+                    if v.type_str() == "string" {
+                        try!(f.write_str("\""));
+                        try!(v.fmt(f));
+                        try!(f.write_str("\""));
+                    } else {
+                        try!(v.fmt(f));
+                    }
                 }
                 f.write_str(" }")
             }
