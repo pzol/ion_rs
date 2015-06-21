@@ -2,3 +2,7 @@
 name = "ion"
 version = "0.1.0"
 authors = ["Piotr Zolnierek <pzolnierek@gmail.com>"]
+
+[dependencies]
+docopt = "*"
+rustc-serialize = "*"

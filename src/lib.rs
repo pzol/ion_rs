@@ -1,9 +1,12 @@
+#![feature(collections)]
 use std::collections::BTreeMap;
 use std::str::FromStr;
 
-mod parser;
 mod display;
+mod parser;
+mod validator;
 pub use parser::{ Parser, ParserError };
+pub use validator::{ Validator, ValidationError };
 
 pub type Dictionary = BTreeMap<String, Value>;
 pub type Row = Vec<Value>;
