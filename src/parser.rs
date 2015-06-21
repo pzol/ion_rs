@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::str;
+use { Section, Value };
 
 #[derive(Debug, PartialEq)]
 pub enum Element {
@@ -9,46 +10,13 @@ pub enum Element {
     Comment(String)
 }
 
-#[derive(Debug)]
-pub enum Section {
-    Dictionary(BTreeMap<String, Value>),
-    Table(Vec<Vec<Value>>)
-}
-
-
-#[allow(dead_code)]
-#[derive(Debug, PartialEq, Clone)]
-pub enum Value {
-    String(String),
-    Integer(i64),
-    Float(f64),
-    Boolean(bool),
-    Datetime(String),
-    Array(Vec<Value>)
-}
-
-#[derive(Debug)]
-enum State {
-    None,
-    Section,
-    Table,
-    Dictionary
-}
-
 pub struct Parser<'a> {
     input: &'a str,
     cur: str::CharIndices<'a>,
-    state: State
+    pub errors: Vec<ParserError>
 }
 
 macro_rules! some {
-    ($expr:expr) => ({
-        let ret = $expr;
-        if ret.is_some() { return ret; }
-    })
-}
-
-macro_rules! try {
     ($expr:expr) => ({
         let ret = $expr;
         if let Some(value) = ret {
@@ -63,20 +31,21 @@ impl<'a> Iterator for Parser<'a> {
     type Item = Element;
 
     fn next(&mut self) -> Option<Element> {
-        while self.peek(0).is_some() {
+        loop {
             self.ws();
             if self.newline() { continue }
-            some!(self.comment());
 
-            return match self.state {
-                State::None       => self.section(),
-                State::Section    => self.body(),
-                State::Dictionary => self.dictionary(),
-                State::Table      => self.table()
-            };
+            if let Some((_, c)) = self.peek(0) {
+                return match c {
+                    '[' => self.section(),
+                    '|' => self.row(),
+                    '#' => self.comment(),
+                    _   => self.entry()
+                };
+            } else {
+                return None;
+            }
         }
-
-        None
     }
 }
 
@@ -85,7 +54,7 @@ impl<'a> Parser<'a> {
         Parser {
             input: s,
             cur: s.char_indices(),
-            state: State::None
+            errors: Vec::new()
         }
     }
 
@@ -131,6 +100,7 @@ impl<'a> Parser<'a> {
 
     fn section(&mut self) -> Option<Element> {
         let mut name = String::new();
+
         if self.eat('[') {
             self.ws();
             while let Some((_, ch)) = self.cur.next() {
@@ -139,51 +109,15 @@ impl<'a> Parser<'a> {
             }
         }
 
-        self.state = State::Section;
         Some(Element::Section(name))
     }
 
-    fn body(&mut self) -> Option<Element> {
-        loop {
-            self.ws();
-            if self.newline() { continue }
-            some!(self.comment());
+    fn entry(&mut self) -> Option<Element> {
+        let key = some!(self.key_name());
+        if !self.keyval_sep() { return None }
+        let val = some!(self.value());
 
-            return match self.peek(0) {
-                Some((_, '|'))  => self.table(),
-                Some((_, '['))  => None,
-                Some(..)        => self.dictionary(),
-                None => None,
-            }
-        }
-    }
-
-    fn dictionary(&mut self) -> Option<Element> {
-        self.state = State::Dictionary;
-
-        loop {
-            self.ws();
-            if self.newline() { continue }
-            some!(self.comment());
-
-            match self.peek(0) {
-                None => return None,
-                Some((_, '['))  => break,
-                Some(..) => {}
-            }
-
-            let key = try!(self.key_name());
-            if !self.keyval_sep() { return None }
-            let val = try!(self.value());
-            if let Some((_, ch)) = self.peek(0) {
-                if ch != '\n' { return None }
-            }
-
-            return Some(Element::Entry(key, val))
-        }
-
-        self.state = State::None;
-        self.section()
+        Some(Element::Entry(key, val))
     }
 
     fn key_name(&mut self) -> Option<String> {
@@ -202,14 +136,71 @@ impl<'a> Parser<'a> {
 
     fn value(&mut self) -> Option<Value> {
         // if self.eat('"') { return self.finish_string(); }
-
         match self.cur.clone().next() {
             Some((_, '"')) => return self.finish_string(),
+            Some((_, '[')) => return self.finish_array(),
+            Some((_, '{')) => return self.finish_dictionary(),
             Some((_, ch)) if is_digit(ch) => self.integer(),
             Some((pos, 't')) |
             Some((pos, 'f')) => self.boolean(pos),
-            _ => None
+            _ => {
+                let mut it = self.cur.clone();
+                let lo = it.next().map(|p| p.0).unwrap_or(self.input.len());
+                let hi = it.next().map(|p| p.0).unwrap_or(self.input.len());
+                self.errors.push(ParserError{
+                    lo: lo, hi: hi,
+                    desc: format!("expected a value")
+                });
+
+                None
+            }
         }
+    }
+
+    fn finish_array(&mut self) -> Option<Value> {
+        self.cur.next();
+        let mut row = Vec::new();
+
+        loop {
+            self.ws();
+            if let Some((_, ch)) = self.peek(0) {
+
+                match ch {
+                    ']' => { self.cur.next(); return Some(Value::Array(row)) },
+                    ',' => { self.cur.next(); continue },
+                    _ => {
+                        match self.value() {
+                            Some(v) => row.push(v),
+                            None    => break
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    fn finish_dictionary(&mut self) -> Option<Value> {
+        self.cur.next();
+        let mut map = BTreeMap::new();
+
+        loop {
+            self.ws();
+            if let Some((_, ch)) = self.peek(0) {
+                match ch {
+                    '}' => { self.cur.next(); return Some(Value::Dictionary(map)) },
+                    ',' => { self.cur.next(); continue },
+                    _ => {
+                        match self.entry() {
+                            Some(Element::Entry(k, v)) => map.insert(k, v),
+                            None    => break,
+                            _ => panic!("Element::Entry expected")
+                        };
+                    }
+                }
+            }
+        }
+        None
     }
 
     fn integer(&mut self) -> Option<Value> {
@@ -217,8 +208,7 @@ impl<'a> Parser<'a> {
         while let Some((_, ch)) = self.cur.clone().next() {
             match ch {
                 '0' ... '9' => { self.cur.next(); ret.push(ch) },
-                '\n' => break,
-                _ => return None
+                _ => break
             }
         }
 
@@ -269,28 +259,18 @@ impl<'a> Parser<'a> {
         self.eat(ch)
     }
 
-    fn table(&mut self) -> Option<Element> {
-        self.state = State::Table;
+    fn row(&mut self) -> Option<Element> {
         let mut row  = Vec::new();
 
         loop {
             self.ws();
-            if self.newline() { continue }
-            some!(self.comment());
-
-            match self.peek(0) {
-                None => break,
-                Some((_, '[')) => break,
-                _ => {}
-            }
+            if self.newline() { break }
+            if self.peek(0).is_none() { break }
 
             row.push(Value::String(self.cell()));
-
-            if self.newline() { return Some(Element::Row(row)) }
         }
 
-        self.state = State::None;
-        self.section()
+        Some(Element::Row(row))
     }
 
     fn cell(&mut self) -> String {
@@ -306,61 +286,43 @@ impl<'a> Parser<'a> {
         ret.trim_right().to_owned()
     }
 
-    pub fn read(&mut self) -> BTreeMap<String, Section> {
+    pub fn read(&mut self) -> Option<BTreeMap<String, Section>> {
         let mut map = BTreeMap::new();
 
-        let mut section : Option<Section> = None;
+        let mut section = Section::new();
         let mut name    = None;
 
         while let Some(el) = self.next() {
             match el {
-                Element::Section(ref n) if section.is_none() => name = Some(n.clone()),
-                Element::Section(n) => {
-                    map.insert(name.unwrap(), section.unwrap());
-                    section = None;
-                    name = Some(n)
+                Element::Section(ref n) => {
+                    if let Some(name) = name {
+                        map.insert(name, section);
+                    }
+                    name = Some(n.to_owned());
+                    section = Section::new();
                 },
 
-                Element::Row(ref row) if section.is_none() => section = Some(Section::Table(vec![row.clone()])),
-                Element::Row(row) => {
-                    match section {
-                        Some(Section::Table(ref mut rows)) => {
-                            rows.push(row)
-                        }
-                        _ => panic!("adding a row to a NON-table")
-                    }
-                },
-                Element::Entry(ref key, ref value) if section.is_none() => section = {
-                    let mut dict = BTreeMap::new();
-                    dict.insert(key.clone(), value.clone());
-                    Some(Section::Dictionary(dict))
-                },
-                Element::Entry(ref key, ref value) => {
-                    match section {
-                        Some(Section::Dictionary(ref mut dict)) => {
-                            dict.insert(key.clone(), value.clone());
-                        },
-                        _ => panic!("adding a dictionary entry to a NON-dictionary")
-                    }
-                }
-                _ => ()
-            }
+                Element::Row(row) => section.rows.push(row),
+                Element::Entry(ref key, ref value) => { section.dictionary.insert(key.clone(), value.clone()); },
+                _ => continue
+            };
         }
 
-        if let Some(s) = section {
-            map.insert(name.expect("name must not be empty"), s);
-        }
+        map.insert(name.unwrap_or("root".to_owned()), section);
 
-        map
+        if self.errors.len() > 0 {
+            None
+        } else {
+            Some(map)
+        }
     }
-
 }
 
 fn is_digit(c: char) -> bool {
     match c { '0' ... '9' => true, _ => false }
 }
 
-#[allow(dead_code)]
+#[derive(Debug)]
 pub struct ParserError {
     /// The low byte at which this error is pointing at.
     pub lo: usize,
@@ -372,14 +334,20 @@ pub struct ParserError {
 
 #[cfg(test)]
 mod tests {
-    macro_rules! next {
-        ($parser:ident) => ({
-            $parser.next().unwrap()
-        })
-    }
+    use { Ion, Parser, ParserError, Value, Section };
+    use super::Element::{ self, Row, Entry, Comment };
+    use std::collections::BTreeMap;
 
-    use super::{ Parser, Value };
-    use super::Element::*;
+    #[test]
+    fn err_entry() {
+        let raw = r#"
+            [err]
+            key = 
+        "#;
+
+        let res : Result<Ion, Vec<ParserError>> = raw.parse();
+        assert!(res.is_err());
+    }
 
     #[test]
     fn parse() {
@@ -389,6 +357,8 @@ mod tests {
         # comment
         second ="another"
         some_bool = true
+
+        ary = [ "col1", 2,"col3", false]
 
         [table]
 
@@ -402,32 +372,104 @@ mod tests {
         [three]
         a=1
         B=2
+        | this |
         "#;
 
         let mut p = Parser::new(raw);
-        assert_eq!(Section("dict".to_owned()), next!(p));
-        assert_eq!(Entry("first".to_owned(), Value::String("first".to_owned())), next!(p));
-        assert_eq!(Comment(" comment\n".to_owned()), next!(p));
-        assert_eq!(Entry("second".to_owned(), Value::String("another".to_owned())), next!(p));
-        assert_eq!(Entry("some_bool".to_owned(), Value::Boolean(true)), next!(p));
-        assert_eq!(Section("table".to_owned()), next!(p));
-        assert_eq!(Row(vec![Value::String("abc".to_owned()), Value::String("def".to_owned())]), next!(p));
-        assert_eq!(Row(vec![Value::String("---".to_owned()), Value::String("---".to_owned())]), next!(p));
-        assert_eq!(Row(vec![Value::String("one".to_owned()), Value::String("two".to_owned())]), next!(p));
-        assert_eq!(Comment(" comment\n".to_owned()), next!(p));
-        assert_eq!(Row(vec![Value::String("1".to_owned()), Value::String("2".to_owned())]), next!(p));
-        assert_eq!(Row(vec![Value::String("2".to_owned()), Value::String("3".to_owned())]), next!(p));
-        assert_eq!(Section("three".to_owned()), next!(p));
-        assert_eq!(Entry("a".to_owned(), Value::Integer(1)), next!(p));
-        assert_eq!(Entry("B".to_owned(), Value::Integer(2)), next!(p));
+
+        assert_eq!(Some(Element::Section("dict".to_owned())), p.next());
+        assert_eq!(Some(Entry("first".to_owned(), Value::String("first".to_owned()))), p.next());
+        assert_eq!(Some(Comment(" comment\n".to_owned())), p.next());
+        assert_eq!(Some(Entry("second".to_owned(), Value::String("another".to_owned()))), p.next());
+        assert_eq!(Some(Entry("some_bool".to_owned(), Value::Boolean(true))), p.next());
+        assert_eq!(Some(
+            Entry("ary".to_owned(),
+                Value::Array(vec![
+                    Value::String("col1".to_owned()),
+                    Value::Integer(2),
+                    Value::String("col3".to_owned()),
+                    Value::Boolean(false)
+        ]))), p.next());
+
+        assert_eq!(Some(Element::Section("table".to_owned())), p.next());
+        assert_eq!(Some(Row(vec![Value::String("abc".to_owned()), Value::String("def".to_owned())])), p.next());
+        assert_eq!(Some(Row(vec![Value::String("---".to_owned()), Value::String("---".to_owned())])), p.next());
+        assert_eq!(Some(Row(vec![Value::String("one".to_owned()), Value::String("two".to_owned())])), p.next());
+        assert_eq!(Some(Comment(" comment\n".to_owned())), p.next());
+        assert_eq!(Some(Row(vec![Value::String("1".to_owned()), Value::String("2".to_owned())])), p.next());
+        assert_eq!(Some(Row(vec![Value::String("2".to_owned()), Value::String("3".to_owned())])), p.next());
+        assert_eq!(Some(Element::Section("three".to_owned())), p.next());
+        assert_eq!(Some(Entry("a".to_owned(), Value::Integer(1))), p.next());
+        assert_eq!(Some(Entry("B".to_owned(), Value::Integer(2))), p.next());
+        assert_eq!(Some(Row(vec![Value::String("this".to_owned())])), p.next());
         assert_eq!(None, p.next());
         assert_eq!(None, p.next());
     }
 
     #[test]
-    fn mapping() {
+    fn no_section() {
         let raw = r#"
-        [MAPPING]
+        foo = "bar"
         "#;
+
+        let ion = Parser::new(raw).read().unwrap();
+        let s   = ion.get("root").unwrap();
+        assert_eq!(format!("{}", s), "foo = \"bar\"\n");
+    }
+
+    #[test]
+    fn nested_dictionary() {
+        let raw = r#"
+        [dict]
+        ndict = { foo = "bar" }
+        "#;
+
+        let expected = {
+            let mut map = BTreeMap::new();
+            let mut sect = Section::new();
+            let mut dict = BTreeMap::new();
+            dict.insert("foo".to_owned(), Value::String("bar".to_owned()));
+            sect.dictionary.insert("ndict".to_owned(), Value::Dictionary(dict));
+            map.insert("dict".to_owned(), sect);
+            map
+        };
+
+        let mut p = Parser::new(raw);
+        assert_eq!(expected, p.read().unwrap());
+    }
+
+    #[test]
+    fn read() {
+        let raw = r#"
+        [SECTION]
+
+        key = "value"
+        # now a table
+        | col1 | col2|
+        "#;
+
+        let expected = {
+            let mut map = BTreeMap::new();
+            let mut section = Section::new();
+            section.dictionary.insert("key".to_owned(), Value::String("value".to_owned()));
+            let mut row = Vec::new();
+            row.push(Value::String("col1".to_owned()));
+            row.push(Value::String("col2".to_owned()));
+            section.rows.push(row);
+            map.insert("SECTION".to_owned(), section);
+            map
+        };
+
+        let mut p = Parser::new(raw);
+        assert_eq!(expected, p.read().unwrap());
+    }
+
+    #[test]
+    fn display() {
+        assert_eq!(format!("{}", Value::String("foo".to_owned())), "foo");
+        assert_eq!(format!("{}", Value::Integer(1)), "1");
+        assert_eq!(format!("{}", Value::Boolean(true)), "true");
+        let ary = Value::Array(vec![Value::Integer(1), Value::String("foo".to_owned())]);
+        assert_eq!(format!("{}", ary), "[ 1, foo ]");
     }
 }
