@@ -135,6 +135,9 @@ impl<'a> Parser<'a> {
     }
 
     fn value(&mut self) -> Option<Value> {
+        self.ws();
+        self.newline();
+        self.ws();
         // if self.eat('"') { return self.finish_string(); }
         match self.cur.clone().next() {
             Some((_, '"')) => return self.finish_string(),
