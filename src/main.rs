@@ -2,7 +2,7 @@ extern crate ion;
 extern crate docopt;
 extern crate rustc_serialize;
 use std::fs::File;
-use std::io::{ Read, Error };
+use std::io::{ self, Read };
 use docopt::Docopt;
 
 use ion::{ Ion, Validator };
@@ -64,12 +64,12 @@ fn validate(filename: String, spec: String) {
     let validator = Validator::new(&ion, &spec);
     if let Some(errors) = validator.validate() {
         for error in errors {
-            println!("{:?}", error);
+            println!("{}", error);
         }
     }
 }
 
-fn read_to_string(filename: &str) -> Result<String, Error> {
+fn read_to_string(filename: &str) -> Result<String, io::Error> {
     let mut f = try!(File::open(filename));
     let mut s = String::new();
     try!(f.read_to_string(&mut s));

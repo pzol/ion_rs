@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::str;
+use std::{ error, fmt, str };
 use { Section, Value };
 
 #[derive(Debug, PartialEq)]
@@ -264,6 +264,7 @@ impl<'a> Parser<'a> {
 
     fn row(&mut self) -> Option<Element> {
         let mut row  = Vec::new();
+        self.eat('|');
 
         loop {
             self.ws();
@@ -278,7 +279,6 @@ impl<'a> Parser<'a> {
 
     fn cell(&mut self) -> String {
         let mut ret = String::new();
-        self.eat('|');
         self.ws();
 
         while let Some((_, ch)) = self.cur.next() {
@@ -335,11 +335,38 @@ pub struct ParserError {
     pub desc: String,
 }
 
+impl error::Error for ParserError {
+    fn description(&self) -> &str {
+        "error parsing Ion"
+    }
+}
+
+impl fmt::Display for ParserError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(self, f)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use { Ion, Parser, ParserError, Value, Section };
+    use { Ion, Parser, Value, Section };
     use super::Element::{ self, Row, Entry, Comment };
     use std::collections::BTreeMap;
+
+    #[test]
+    fn empty_cell() {
+        let raw = r#"
+            [EMPTY]
+            |1||2|
+            |1|   |2|
+        "#;
+
+        let mut p = Parser::new(raw);
+        assert_eq!(Some(Element::Section("EMPTY".to_owned())), p.next());
+        assert_eq!(Some(Row(vec![Value::String("1".to_owned()), Value::String("".to_owned()), Value::String("2".to_owned())])), p.next());
+        assert_eq!(Some(Row(vec![Value::String("1".to_owned()), Value::String("".to_owned()), Value::String("2".to_owned())])), p.next());
+        assert_eq!(None, p.next());
+    }
 
     #[test]
     fn err_entry() {
@@ -348,7 +375,7 @@ mod tests {
             key = 
         "#;
 
-        let res : Result<Ion, Vec<ParserError>> = raw.parse();
+        let res : Result<Ion, _> = raw.parse();
         assert!(res.is_err());
     }
 

@@ -1,6 +1,7 @@
-#![feature(collections, slice_patterns, convert)]
+#![feature(str_split_at, slice_patterns, convert)]
 use std::collections::BTreeMap;
 use std::str::FromStr;
+use std::{ error, fmt };
 
 mod display;
 mod parser;
@@ -30,14 +31,31 @@ impl Ion {
     }
 }
 
-impl FromStr for Ion {
-    type Err = Vec<parser::ParserError>;
+#[derive(Debug)]
+pub struct Error {
+    errors: Vec<parser::ParserError>
+}
 
-    fn from_str(s: &str) -> Result<Ion, Vec<parser::ParserError>> {
+impl error::Error for Error {
+    fn description(&self) -> &str {
+        "Error parsing ion"
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(self, f)
+    }
+}
+
+impl FromStr for Ion {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Ion, Error> {
         let mut p = Parser::new(s);
         match p.read() {
             Some(ion) => Ok(Ion::new(ion)),
-            None      => Err(p.errors)
+            None      => Err(Error { errors: p.errors })
         }
     }
 }
