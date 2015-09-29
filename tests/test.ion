@@ -1,0 +1,21 @@
+[dict]
+ary = [ "a", "b", 3 ]
+first = "first"
+# comment
+second ="another"
+bool = true
+
+[table]
+
+|abc|def|
+|---|---|
+|one|two|
+# comment
+|  1| 2 |
+|  2| 3 |
+
+[mixed]
+a=1
+B=2
+| this | :) |
+| that |

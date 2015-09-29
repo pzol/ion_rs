@@ -1,0 +1,9 @@
+[HOTEL]
+name = "HOTEL"
+category = 4.0
+ptype = "H"
+
+# rooms
+| room_name | facilities |
+| Standard  |            |
+
