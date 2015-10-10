@@ -8,5 +8,5 @@ repository = "http://github.com/pzol/ion_rs"
 authors = ["Piotr Zolnierek <pzolnierek@gmail.com>"]
 
 [dependencies]
-docopt = "*"
-rustc-serialize = "*"
+docopt = "^0.6.73"
+rustc-serialize = "^0.3.16"
