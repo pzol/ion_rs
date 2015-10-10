@@ -268,6 +268,7 @@ impl<'a> Parser<'a> {
 
         loop {
             self.ws();
+            if self.comment().is_some() { break } // this will eat and NOT return comments within tables
             if self.newline() { break }
             if self.peek(0).is_none() { break }
 
@@ -476,6 +477,8 @@ mod tests {
         key = "value"
         # now a table
         | col1 | col2|
+        | col1 | col2| # comment
+        | col1 | col2|
         "#;
 
         let expected = {
@@ -485,6 +488,8 @@ mod tests {
             let mut row = Vec::new();
             row.push(Value::String("col1".to_owned()));
             row.push(Value::String("col2".to_owned()));
+            section.rows.push(row.clone());
+            section.rows.push(row.clone());
             section.rows.push(row);
             map.insert("SECTION".to_owned(), section);
             map
