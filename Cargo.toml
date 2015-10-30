@@ -1,6 +1,6 @@
 [package]
 name = "ion"
-version = "0.1.3"
+version = "0.1.4"
 description = "a parser for ion files"
 license = "MIT"
 homepage = "http://github.com/pzol/ion_rs"
