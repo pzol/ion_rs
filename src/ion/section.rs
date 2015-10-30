@@ -16,12 +16,10 @@ impl Section {
     }
 
     pub fn rows_without_header(&self) -> &[Row] {
-        if self.rows.len() > 2 {
-            let row = &self.rows[1];
-            if let [Value::String(ref s), ..] = &row[..1] {
-                if s.starts_with("-") {
-                    return &self.rows[2..]
-                }
+        let row = &self.rows[1];
+        if let [Value::String(ref s), ..] = &row[..1] {
+            if s.starts_with("-") {
+                return &self.rows[2..]
             }
         }
 

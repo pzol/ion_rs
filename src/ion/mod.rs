@@ -121,4 +121,16 @@ mod tests {
         let rows = ion.get("FOO").unwrap().rows_without_header();
         assert!(rows.len() == 2);
     }
+
+    #[test]
+    fn no_rows_with_header() {
+        let ion = ion!(r#"
+            [FOO]
+            | 1 | 2 | 3 |
+            |---|---|---|
+        "#);
+
+        let rows = ion.get("FOO").unwrap().rows_without_header();
+        assert_eq!(0, rows.len());
+    }
 }
