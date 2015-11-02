@@ -1,3 +1,4 @@
+mod ion_error;
 mod display;
 mod section;
 mod value;
@@ -5,6 +6,7 @@ mod value;
 use std::{ error, str };
 use std::collections::BTreeMap;
 use { Parser, ParserError };
+pub use self::ion_error::IonError;
 pub use self::section::Section;
 pub use self::value::Value;
 
@@ -29,6 +31,10 @@ impl Ion {
 
     pub fn get(&self, key: &str) -> Option<&Section> {
         self.sections.get(key)
+    }
+
+    pub fn fetch(&self, key: &str) -> Result<&Section, IonError> {
+        self.get(key).ok_or(IonError::MissingSection(key.to_owned()))
     }
 
     pub fn iter(&self) -> ::std::collections::btree_map::Iter<String, Section> {

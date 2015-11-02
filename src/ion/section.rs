@@ -1,4 +1,4 @@
-use { Dictionary, Value, Row };
+use { Dictionary, IonError, Value, Row };
 
 #[derive(Debug, PartialEq)]
 pub struct Section {
@@ -13,6 +13,11 @@ impl Section {
 
     pub fn get(&self, name: &str) -> Option<&Value> {
         self.dictionary.get(name)
+    }
+
+    /// like get, only returns a `Result`
+    pub fn fetch(&self, key: &str) -> Result<&Value, IonError> {
+        self.get(key).ok_or(IonError::MissingValue(key.to_owned()))
     }
 
     pub fn rows_without_header(&self) -> &[Row] {
