@@ -1,4 +1,5 @@
-use { Dictionary, Row };
+use std::str::FromStr;
+use { Dictionary, FromIon, IonError, Row };
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Value {
@@ -71,4 +72,35 @@ impl Value {
         }
     }
 
+    /// convert to type `F` using the `FromIon` trait
+    pub fn from_ion<F : FromIon>(&self) -> Result<F, F::Err> {
+        F::from_ion(self)
+    }
+
+    /// parse to the resulting type, if the inner value is not a string, convert to string first
+    pub fn parse<F : FromStr>(&self) -> Result<F, F::Err> {
+        match self.as_string() {
+            Some(s) => s.parse(),
+            None    => self.to_string().parse()
+        }
+    }
+}
+
+impl FromStr for Value {
+    type Err = IonError;
+
+    fn from_str(s: &str) -> Result<Value, IonError> {
+        Ok(Value::String(s.to_owned()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use Value;
+
+    #[test]
+    fn parse() {
+        let v : Value = "1".parse().unwrap();
+        assert_eq!(1, v.parse().unwrap());
+    }
 }

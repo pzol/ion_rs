@@ -10,6 +10,6 @@ pub use validator::{ Validator, ValidationError };
 pub use writer::Writer;
 
 pub type Dictionary = BTreeMap<String, Value>;
-pub use ion::{ Ion, IonError, Section, Value };
+pub use ion::{ Ion, IonError, FromIon, Section, Value };
 pub type Row = Vec<Value>;
 

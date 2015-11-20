@@ -1,5 +1,6 @@
 mod ion_error;
 mod display;
+mod from_ion;
 mod section;
 mod value;
 
@@ -9,6 +10,7 @@ use { Parser, ParserError };
 pub use self::ion_error::IonError;
 pub use self::section::Section;
 pub use self::value::Value;
+pub use ion::from_ion::FromIon;
 
 #[macro_export]
 macro_rules! ion {

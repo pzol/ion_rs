@@ -4,9 +4,10 @@ use std::{ error, fmt };
 pub enum IonError {
     MissingSection(String),
     MissingValue(String),
+    ParseError
 }
 
-impl error::Error  for IonError{
+impl error::Error  for IonError {
     fn description(&self) -> &str { "IonError" }
 }
 
