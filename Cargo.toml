@@ -9,4 +9,4 @@ authors = ["Piotr Zolnierek <pzolnierek@gmail.com>"]
 
 [dependencies]
 docopt = "^0.6.73"
-rustc-serialize = "^0.3.16"
+rustc-serialize = "^0.3"
