@@ -38,6 +38,7 @@ impl fmt::Display for Value {
         match *self {
             Value::String(ref v)     => v.fmt(f),
             Value::Integer(ref v)    => v.fmt(f),
+            Value::Float(ref v)      => v.fmt(f),
             Value::Boolean(ref v)    => v.fmt(f),
             Value::Array(ref v)      => {
                 try!(f.write_str("[ "));

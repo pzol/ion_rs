@@ -5,7 +5,7 @@ use { Dictionary, FromIon, IonError, Row };
 pub enum Value {
     String(String),
     Integer(i64),
-    // Float(f64),
+    Float(f64),
     Boolean(bool),
     // Datetime(String),
     Array(Row),
@@ -17,6 +17,7 @@ impl Value {
         match *self {
             Value::String(..)     => "string",
             Value::Integer(..)    => "integer",
+            Value::Float(..)      => "float",
             Value::Boolean(..)    => "boolean",
             Value::Array(..)      => "array",
             Value::Dictionary(..) => "dictionary"
@@ -40,6 +41,13 @@ impl Value {
     pub fn as_integer(&self) -> Option<i64> {
         match *self {
             Value::Integer(v) => Some(v),
+            _ => None
+        }
+    }
+
+    pub fn as_float(&self) -> Option<f64> {
+        match *self {
+            Value::Float(v) => Some(v),
             _ => None
         }
     }

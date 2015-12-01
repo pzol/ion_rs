@@ -1,15 +1,19 @@
-mod ion_error;
+mod decoder;
 mod display;
 mod from_ion;
+mod from_row;
+mod ion_error;
 mod section;
 mod value;
 
 use std::{ error, str };
 use std::collections::BTreeMap;
 use { Parser, ParserError };
+pub use self::decoder::{ decode, Decoder };
 pub use self::ion_error::IonError;
 pub use self::section::Section;
 pub use self::value::Value;
+pub use ion::from_row::FromRow;
 pub use ion::from_ion::FromIon;
 
 #[macro_export]
