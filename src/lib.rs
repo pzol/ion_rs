@@ -23,5 +23,5 @@ pub use validator::{ Validator, ValidationError };
 pub use writer::Writer;
 
 pub type Dictionary = BTreeMap<String, Value>;
-pub use ion::{ decode, Decoder, Ion, IonError, FromIon, Section, Value };
+pub use ion::{ decode, decode_from_vec, Decoder, Ion, IonError, FromIon, Section, Value };
 pub type Row = Vec<Value>;

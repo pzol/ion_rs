@@ -154,12 +154,16 @@ impl Decoder {
 }
 
 pub fn decode<T: ::rustc_serialize::Decodable + fmt::Debug>(value: Value) -> Result<T, DecodeError> {
-    ::rustc_serialize::Decodable::decode(&mut Decoder::new(value))
+    ::rustc_serialize::Decodable::decode(&mut Decoder::new(value.to_owned()))
+}
+
+pub fn decode_from_vec<T: ::rustc_serialize::Decodable + fmt::Debug>(vec: Vec<Value>) -> Result<T, DecodeError> {
+    decode(Value::Array(vec))
 }
 
 #[cfg(test)]
 mod tests {
-    use ion::decode;
+    use ion::decode_from_vec;
     use ::rustc_serialize as rs;
     use Value;
 
@@ -188,7 +192,7 @@ mod tests {
     #[test]
     fn test_decode() {
         let row : Vec<_> = "1|foo|some|true|1|1,2".split("|").map(|s| Value::String(s.to_owned())).collect();
-        let foo : Foo = decode(Value::Array(row)).expect("decode");
+        let foo : Foo = decode_from_vec(row).expect("decode");
 
         assert_eq!(1, foo.int);
         assert_eq!("foo", foo.string);

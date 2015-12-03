@@ -1,3 +1,12 @@
+#[macro_export]
+macro_rules! ion {
+    ($raw:expr) => ({
+        use ::ion::Ion;
+        let ion : Ion = $raw.parse().unwrap();
+        ion
+    })
+}
+
 mod decoder;
 mod display;
 mod from_ion;
@@ -9,21 +18,12 @@ mod value;
 use std::{ error, str };
 use std::collections::BTreeMap;
 use { Parser, ParserError };
-pub use self::decoder::{ decode, Decoder };
+pub use self::decoder::{ decode, decode_from_vec, Decoder };
 pub use self::ion_error::IonError;
 pub use self::section::Section;
 pub use self::value::Value;
 pub use ion::from_row::FromRow;
 pub use ion::from_ion::FromIon;
-
-#[macro_export]
-macro_rules! ion {
-    ($raw:expr) => ({
-        use ::ion::Ion;
-        let ion : Ion = $raw.parse().unwrap();
-        ion
-    })
-}
 
 #[derive(Debug)]
 pub struct Ion {
@@ -41,6 +41,11 @@ impl Ion {
 
     pub fn fetch(&self, key: &str) -> Result<&Section, IonError> {
         self.get(key).ok_or(IonError::MissingSection(key.to_owned()))
+    }
+
+    /// Removes a `Section` from the ion structure and returning it
+    pub fn remove(&mut self, key: &str) -> Option<Section> {
+        self.sections.remove(key)
     }
 
     pub fn iter(&self) -> ::std::collections::btree_map::Iter<String, Section> {

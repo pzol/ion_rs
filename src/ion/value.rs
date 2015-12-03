@@ -7,7 +7,6 @@ pub enum Value {
     Integer(i64),
     Float(f64),
     Boolean(bool),
-    // Datetime(String),
     Array(Row),
     Dictionary(Dictionary)
 }
