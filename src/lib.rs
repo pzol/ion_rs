@@ -1,6 +1,7 @@
-#![feature(slice_patterns, convert)]
+#![feature(slice_patterns)]
 use std::collections::BTreeMap;
-extern crate rustc_serialize;
+#[cfg(feature = "rustc-serialize")] extern crate rustc_serialize;
+#[cfg(feature = "serde")] extern crate serde;
 
 macro_rules! parse_next {
     ($row:expr, $err:expr) => ({

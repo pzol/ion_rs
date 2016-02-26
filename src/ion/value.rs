@@ -80,7 +80,7 @@ impl Value {
     }
 
     /// convert to type `F` using the `FromIon` trait
-    pub fn from_ion<F : FromIon>(&self) -> Result<F, F::Err> {
+    pub fn from_ion<F : FromIon<Value>>(&self) -> Result<F, F::Err> {
         F::from_ion(self)
     }
 

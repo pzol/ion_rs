@@ -1,18 +1,18 @@
 use ion::Value;
 
-pub trait FromIon : Sized {
+pub trait FromIon<T> : Sized {
     type Err;
-    fn from_ion(&Value) -> Result<Self, Self::Err>;
+    fn from_ion(&T) -> Result<Self, Self::Err>;
 }
 
-impl FromIon for String {
+impl FromIon<Value> for String {
     type Err = ();
     fn from_ion(value: &Value) -> Result<Self, Self::Err> {
         value.as_string().map(|s| s.to_owned()).ok_or(())
     }
 }
 
-impl FromIon for Option<String> {
+impl FromIon<Value> for Option<String> {
     type Err = ();
     fn from_ion(value: &Value) -> Result<Self, Self::Err> {
         value.as_string().map(|s| {
@@ -27,7 +27,7 @@ impl FromIon for Option<String> {
 
 macro_rules! from_ion_value_int_impl {
      ($($t:ty)*) => {$(
-         impl FromIon for $t {
+         impl FromIon<Value> for $t {
              type Err = ::std::num::ParseIntError;
              fn from_ion(value: &Value) -> Result<Self, Self::Err> {
                 match value.as_string() {
@@ -41,7 +41,7 @@ macro_rules! from_ion_value_int_impl {
 
 from_ion_value_int_impl!{ isize i8 i16 i32 i64 usize u8 u16 u32 u64 }
 
-impl FromIon for bool {
+impl FromIon<Value> for bool {
     type Err = ::std::str::ParseBoolError;
     fn from_ion(value: &Value) -> Result<Self, Self::Err> {
         match value.as_string() {
@@ -54,7 +54,7 @@ impl FromIon for bool {
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
-    use ion::{ FromIon, Value };
+    use ion::{ FromIon, Section, Value };
 
     #[test]
     fn string() {
@@ -97,5 +97,26 @@ mod tests {
         let u : Result<bool, _> = v.from_ion();
         assert!(u.is_err());
 
+    }
+
+    struct Foo {
+        a: u32,
+        b: String
+    }
+
+
+    impl FromIon<Section> for Foo {
+        type Err = ();
+        fn from_ion(_section: &Section) -> Result<Self, Self::Err> {
+            Ok(Foo { a: 1, b: "foo".to_owned() })
+        }
+    }
+
+    #[test]
+    fn from_ion_section() {
+        let section = Section::new();
+        let foo : Foo = section.parse().unwrap();
+        assert_eq!(1, foo.a);
+        assert_eq!("foo", foo.b);
     }
 }

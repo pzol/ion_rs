@@ -3,7 +3,8 @@ use std::fmt;
 use Value;
 use self::DecodeErrorKind::*;
 
-mod rustc_serialize;
+#[cfg(feature = "rustc-serialize")] mod rustc_serialize;
+#[cfg(feature = "serde")] mod serde; // TODO
 
 pub struct Decoder {
     value: Option<Value>,

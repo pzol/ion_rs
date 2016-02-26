@@ -1,5 +1,5 @@
 use std::vec;
-use { Dictionary, IonError, Value, Row };
+use { Dictionary, FromIon, IonError, Value, Row };
 
 #[derive(Debug, PartialEq)]
 pub struct Section {
@@ -32,6 +32,10 @@ impl Section {
         }
 
         &self.rows
+    }
+
+    pub fn parse<F : FromIon<Section>>(&self) -> Result<F, F::Err> {
+        F::from_ion(self)
     }
 }
 

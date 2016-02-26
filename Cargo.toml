@@ -1,6 +1,6 @@
 [package]
 name = "ion"
-version = "0.4.0"
+version = "0.5.0"
 description = "parse and process ion files"
 license = "MIT"
 homepage = "http://github.com/pzol/ion_rs"
@@ -9,4 +9,8 @@ authors = ["Piotr Zolnierek <pzolnierek@gmail.com>"]
 
 [dependencies]
 docopt = "^0.6.73"
-rustc-serialize = "^0.3"
+rustc-serialize = { optional = true, version = "^0.3" }
+serde = { optional = true, version = "0.6" }
+
+[features]
+default = ["rustc-serialize"]
