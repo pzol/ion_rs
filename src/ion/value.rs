@@ -106,8 +106,14 @@ mod tests {
     use Value;
 
     #[test]
-    fn parse() {
+    fn integer() {
         let v : Value = "1".parse().unwrap();
         assert_eq!(1, v.parse().unwrap());
+    }
+
+    #[test]
+    fn float() {
+        let v : Value = "4.0".parse().unwrap();
+        assert_eq!(4.0f64, v.parse().unwrap());
     }
 }

@@ -1,9 +1,11 @@
 [HOTEL]
 name = "HOTEL"
-category = 4.0
+category = 4.5
 ptype = "H"
+dict = { a = "b" }
 
-# rooms
-| room_name | facilities |
-| Standard  |            |
-
+75042 = {
+    view = "SV"
+    loc  = ["M", "B"]
+    dist = { beach_km = 4.1 }
+}

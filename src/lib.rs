@@ -15,7 +15,7 @@ macro_rules! parse_next {
     })
 }
 
-mod ion;
+#[macro_use] mod ion;
 mod parser;
 mod validator;
 mod writer;

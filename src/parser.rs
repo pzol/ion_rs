@@ -2,6 +2,10 @@ use std::collections::BTreeMap;
 use std::{ error, fmt, str };
 use { Section, Value };
 
+macro_rules! try {
+    ($e:expr) => (match $e { Some(s) => s, None => return None })
+}
+
 #[derive(Debug, PartialEq)]
 pub enum Element {
     Section(String),
@@ -143,7 +147,7 @@ impl<'a> Parser<'a> {
             Some((_, '"')) => return self.finish_string(),
             Some((_, '[')) => return self.finish_array(),
             Some((_, '{')) => return self.finish_dictionary(),
-            Some((_, ch)) if is_digit(ch) => self.integer(),
+            Some((_, ch)) if is_digit(ch) => self.number(),
             Some((pos, 't')) |
             Some((pos, 'f')) => self.boolean(pos),
             _ => {
@@ -193,6 +197,7 @@ impl<'a> Parser<'a> {
                 match ch {
                     '}' => { self.cur.next(); return Some(Value::Dictionary(map)) },
                     ',' => { self.cur.next(); continue },
+                    '\n' => { self.cur.next(); continue },
                     _ => {
                         match self.entry() {
                             Some(Element::Entry(k, v)) => map.insert(k, v),
@@ -206,7 +211,31 @@ impl<'a> Parser<'a> {
         None
     }
 
-    fn integer(&mut self) -> Option<Value> {
+    fn number(&mut self) -> Option<Value> {
+        let mut is_float = false;
+        let prefix = try!(self.integer());
+        let decimal = if self.eat('.') {
+            is_float = true;
+            Some(try!(self.integer()))
+        } else {
+            None
+        };
+
+        println!("{:?}.{:?}", prefix, decimal);
+
+        let input = match decimal {
+            Some(ref decimal) => prefix + "." + decimal,
+            None          => prefix
+        };
+
+        if is_float {
+            input.parse().ok().map(Value::Float)
+        } else {
+            input.parse().ok().map(Value::Integer)
+        }
+    }
+
+    fn integer(&mut self) -> Option<String> {
         let mut ret = String::new();
         while let Some((_, ch)) = self.cur.clone().next() {
             match ch {
@@ -215,12 +244,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        let num : i64 = match ret.parse() {
-            Ok(num) => num,
-            Err(_)  => return None
-        };
-
-        Some(Value::Integer(num))
+        Some(ret)
     }
 
     fn boolean(&mut self, start: usize) -> Option<Value> {
@@ -350,6 +374,7 @@ impl fmt::Display for ParserError {
 
 #[cfg(test)]
 mod tests {
+
     use { Ion, Parser, Value, Section };
     use super::Element::{ self, Row, Entry, Comment };
     use std::collections::BTreeMap;
@@ -497,6 +522,17 @@ mod tests {
 
         let mut p = Parser::new(raw);
         assert_eq!(expected, p.read().unwrap());
+    }
+
+    #[test]
+    fn dict_with_newline() {
+        let ion = ion!(r#"[TEST]
+    R75042 = {
+    view = "SV"
+    loc  = ["M", "B"]
+    dist = { beach_km = 4.1 }
+}"#);
+        assert_eq!("[TEST]\nR75042 = { dist = { beach_km = 4.1 }, loc = [ M, B ], view = \"SV\" }\n\n", ion.to_string());
     }
 
     #[test]
