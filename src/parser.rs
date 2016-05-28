@@ -350,7 +350,7 @@ fn is_digit(c: char) -> bool {
     match c { '0' ... '9' => true, _ => false }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ParserError {
     /// The low byte at which this error is pointing at.
     pub lo: usize,

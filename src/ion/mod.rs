@@ -15,9 +15,9 @@ mod ion_error;
 mod section;
 mod value;
 
-use std::{ error, str };
+use std::str;
 use std::collections::BTreeMap;
-use { Parser, ParserError };
+use Parser;
 pub use self::decoder::{ decode, decode_from_vec, Decoder };
 pub use self::ion_error::IonError;
 pub use self::section::Section;
@@ -53,25 +53,14 @@ impl Ion {
     }
 }
 
-#[derive(Debug)]
-pub struct Error {
-    errors: Vec<ParserError>
-}
-
-impl error::Error for Error {
-    fn description(&self) -> &str {
-        "Error parsing ion"
-    }
-}
-
 impl str::FromStr for Ion {
-    type Err = Error;
+    type Err = IonError;
 
-    fn from_str(s: &str) -> Result<Ion, Error> {
+    fn from_str(s: &str) -> Result<Ion, IonError> {
         let mut p = Parser::new(s);
         match p.read() {
             Some(ion) => Ok(Ion::new(ion)),
-            None      => Err(Error { errors: p.errors })
+            None      => Err(IonError::ParserErrors(p.errors))
         }
     }
 }

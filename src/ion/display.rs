@@ -72,8 +72,8 @@ impl fmt::Display for Value {
     }
 }
 
-impl fmt::Display for super::Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Debug::fmt(self, f)
-    }
-}
+// impl fmt::Display for super::Error {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         fmt::Debug::fmt(self, f)
+//     }
+// }

@@ -1,10 +1,12 @@
 use std::{ error, fmt };
+use parser::ParserError;
 
 #[derive(Clone, Debug)]
 pub enum IonError {
     MissingSection(String),
     MissingValue(String),
-    ParseError
+    ParseError,
+    ParserErrors(Vec<ParserError>)
 }
 
 impl error::Error  for IonError {
