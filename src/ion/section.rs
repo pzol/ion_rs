@@ -24,7 +24,7 @@ impl Section {
     pub fn rows_without_header(&self) -> &[Row] {
         if self.rows.len() > 1 {
             let row = &self.rows[1];
-            if let [Value::String(ref s), ..] = &row[..1] {
+            if let &[Value::String(ref s), ..] = &row[..1] {
                 if s.starts_with("-") {
                     return &self.rows[2..]
                 }
@@ -79,7 +79,7 @@ impl IntoIterator for Section {
         let has_header = self.rows.iter()
             .skip(1)
             .take(1)
-            .take_while(|&v| if let [Value::String(ref s), ..] = &v[1..] { s.starts_with("-")} else { false })
+            .take_while(|&v| if let &[Value::String(ref s), ..] = &v[1..] { s.starts_with("-")} else { false })
             .next()
             .is_some();
 
