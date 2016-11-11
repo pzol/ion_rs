@@ -46,7 +46,13 @@ impl fmt::Display for Value {
                 let mut first = true;
                 for i in v {
                     if first { first = false } else { try!(f.write_str(", ")) }
-                    try!(i.fmt(f));
+                    if i.is_string() {
+                        try!(f.write_str("\""));
+                        try!(i.fmt(f));
+                        try!(f.write_str("\""));
+                    } else {
+                        try!(i.fmt(f));
+                    }
                 }
                 f.write_str(" ]")
             },

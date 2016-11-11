@@ -21,7 +21,7 @@ fn test_ion() {
 fn hotel_ion() {
     let ion = read_ion!("tests/hotel.ion");
     let exp = r#"[HOTEL]
-75042 = { dist = { beach_km = 4.1 }, loc = [ M, B ], view = "SV" }
+75042 = { dist = { beach_km = 4.1 }, loc = [ "M", "B" ], view = "SV" }
 category = 4.5
 dict = { a = "b" }
 name = "HOTEL"

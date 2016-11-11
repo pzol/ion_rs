@@ -474,6 +474,16 @@ mod tests {
     }
 
     #[test]
+    fn string_ary() {
+        let raw = r#"
+        ary = ["WAW", "WRO"]"#;
+
+        let ion = Parser::new(raw).read().unwrap();
+        let s   = ion.get("root").unwrap();
+        assert_eq!(s.to_string(), "ary = [ \"WAW\", \"WRO\" ]\n");
+    }
+
+    #[test]
     fn nested_dictionary() {
         let raw = r#"
         [dict]
@@ -532,7 +542,7 @@ mod tests {
     loc  = ["M", "B"]
     dist = { beach_km = 4.1 }
 }"#);
-        assert_eq!("[TEST]\nR75042 = { dist = { beach_km = 4.1 }, loc = [ M, B ], view = \"SV\" }\n\n", ion.to_string());
+        assert_eq!("[TEST]\nR75042 = { dist = { beach_km = 4.1 }, loc = [ \"M\", \"B\" ], view = \"SV\" }\n\n", ion.to_string());
     }
 
     #[test]
@@ -541,6 +551,6 @@ mod tests {
         assert_eq!(format!("{}", Value::Integer(1)), "1");
         assert_eq!(format!("{}", Value::Boolean(true)), "true");
         let ary = Value::Array(vec![Value::Integer(1), Value::String("foo".to_owned())]);
-        assert_eq!(format!("{}", ary), "[ 1, foo ]");
+        assert_eq!(format!("{}", ary), "[ 1, \"foo\" ]");
     }
 }

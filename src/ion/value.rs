@@ -30,6 +30,13 @@ impl Value {
         }
     }
 
+    pub fn is_string(&self) -> bool {
+        match *self {
+            Value::String(_) => true,
+            _ => false
+        }
+    }
+
     pub fn as_str(&self) -> Option<&str> {
         match *self {
             Value::String(ref v) => Some(v.as_str()),
