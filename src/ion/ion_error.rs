@@ -1,4 +1,4 @@
-use std::{ error, fmt };
+use std::{error, fmt};
 use parser::ParserError;
 
 #[derive(Clone, Debug)]
@@ -6,11 +6,13 @@ pub enum IonError {
     MissingSection(String),
     MissingValue(String),
     ParseError,
-    ParserErrors(Vec<ParserError>)
+    ParserErrors(Vec<ParserError>),
 }
 
-impl error::Error  for IonError {
-    fn description(&self) -> &str { "IonError" }
+impl error::Error for IonError {
+    fn description(&self) -> &str {
+        "IonError"
+    }
 }
 
 impl fmt::Display for IonError {

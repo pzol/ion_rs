@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8
+Drop unused / unfinished features
+- RustcDeserialize support
+- Validator (which wasn't working anyway)
+
 ## 0.7.3
 - fix `Display` of `Value::String` withing arrays to be enclosed in `"`
 

@@ -7,7 +7,6 @@ macro_rules! ion {
     })
 }
 
-mod decoder;
 mod display;
 mod from_ion;
 mod from_row;
@@ -18,7 +17,7 @@ mod value;
 use std::str;
 use std::collections::BTreeMap;
 use Parser;
-pub use self::decoder::{ decode, decode_from_vec, Decoder };
+
 pub use self::ion_error::IonError;
 pub use self::section::Section;
 pub use self::value::Value;
@@ -27,7 +26,7 @@ pub use ion::from_ion::FromIon;
 
 #[derive(Debug)]
 pub struct Ion {
-    sections: BTreeMap<String, Section>
+    sections: BTreeMap<String, Section>,
 }
 
 impl Ion {
@@ -60,14 +59,14 @@ impl str::FromStr for Ion {
         let mut p = Parser::new(s);
         match p.read() {
             Some(ion) => Ok(Ion::new(ion)),
-            None      => Err(IonError::ParserErrors(p.errors))
+            None => Err(IonError::ParserErrors(p.errors)),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use { Value };
+    use Value;
 
     #[test]
     fn as_string() {

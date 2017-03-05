@@ -1,4 +1,4 @@
-use { Ion, Section, Value };
+use {Ion, Section, Value};
 
 use std::fmt;
 
@@ -36,16 +36,20 @@ impl fmt::Display for Section {
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
-            Value::String(ref v)     => v.fmt(f),
-            Value::Integer(ref v)    => v.fmt(f),
-            Value::Float(ref v)      => v.fmt(f),
-            Value::Boolean(ref v)    => v.fmt(f),
-            Value::Array(ref v)      => {
+            Value::String(ref v) => v.fmt(f),
+            Value::Integer(ref v) => v.fmt(f),
+            Value::Float(ref v) => v.fmt(f),
+            Value::Boolean(ref v) => v.fmt(f),
+            Value::Array(ref v) => {
                 try!(f.write_str("[ "));
 
                 let mut first = true;
                 for i in v {
-                    if first { first = false } else { try!(f.write_str(", ")) }
+                    if first {
+                        first = false
+                    } else {
+                        try!(f.write_str(", "))
+                    }
                     if i.is_string() {
                         try!(f.write_str("\""));
                         try!(i.fmt(f));
@@ -55,13 +59,17 @@ impl fmt::Display for Value {
                     }
                 }
                 f.write_str(" ]")
-            },
+            }
             Value::Dictionary(ref d) => {
                 try!(f.write_str("{ "));
 
                 let mut first = true;
                 for (k, v) in d {
-                    if first { first = false } else { try!(f.write_str(", ")) }
+                    if first {
+                        first = false
+                    } else {
+                        try!(f.write_str(", "))
+                    }
                     try!(k.fmt(f));
                     try!(f.write_str(" = "));
                     if v.type_str() == "string" {
