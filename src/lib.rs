@@ -1,6 +1,5 @@
 #![feature(slice_patterns)]
 use std::collections::BTreeMap;
-#[cfg(feature = "serde")] extern crate serde;
 
 macro_rules! parse_next {
     ($row:expr, $err:expr) => ({
