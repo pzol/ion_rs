@@ -7,6 +7,12 @@ macro_rules! ion {
     })
 }
 
+macro_rules! ion_filtered {
+    ($raw:expr, $accepted:expr) => {
+        ::ion::Ion::from_str_filtered($raw, $accepted).unwrap()
+    }
+}
+
 mod display;
 mod from_ion;
 mod from_row;
@@ -34,6 +40,14 @@ impl Ion {
         Ion { sections: map }
     }
 
+    pub fn from_str_filtered(s: &str, accepted_sections: &[&str]) -> Result<Self, IonError> {
+        let mut p = Parser::new_filtered(s, accepted_sections);
+        match p.read() {
+            Some(ion) => Ok(Ion::new(ion)),
+            None => Err(IonError::ParserErrors(p.errors)),
+        }
+    }
+
     pub fn get(&self, key: &str) -> Option<&Section> {
         self.sections.get(key)
     }
@@ -56,11 +70,7 @@ impl str::FromStr for Ion {
     type Err = IonError;
 
     fn from_str(s: &str) -> Result<Ion, IonError> {
-        let mut p = Parser::new(s);
-        match p.read() {
-            Some(ion) => Ok(Ion::new(ion)),
-            None => Err(IonError::ParserErrors(p.errors)),
-        }
+        Self::from_str_filtered(s, &[])
     }
 }
 
@@ -137,5 +147,21 @@ mod tests {
 
         let rows = ion.get("FOO").unwrap().rows_without_header();
         assert_eq!(0, rows.len());
+    }
+
+    #[test]
+    fn filtered_section() {
+        let ion = ion_filtered!(r#"
+            [FOO]
+            |1||2|
+            |1|   |2|
+            |1|2|3|
+            [BAR]
+            |1||2|
+        "#, &["FOO"]);
+
+        let rows = ion.get("FOO").unwrap().rows_without_header();
+        assert_eq!(3, rows.len());
+        assert!(ion.get("BAR").is_none());
     }
 }
