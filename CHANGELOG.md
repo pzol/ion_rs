@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.8.1
+- Add filtering of sections when loading ion
+
 ## 0.8
 Drop unused / unfinished features
 - RustcDeserialize support

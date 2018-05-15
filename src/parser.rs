@@ -17,7 +17,8 @@ pub enum Element {
 pub struct Parser<'a> {
     input: &'a str,
     cur: str::CharIndices<'a>,
-    pub errors: Vec<ParserError>
+    pub errors: Vec<ParserError>,
+    accepted_sections: Option<Vec<&'a str>>,
 }
 
 macro_rules! some {
@@ -35,31 +36,54 @@ impl<'a> Iterator for Parser<'a> {
     type Item = Element;
 
     fn next(&mut self) -> Option<Element> {
+        let mut is_section_accepted = true;
         loop {
             self.ws();
             if self.newline() { continue }
 
-            if let Some((_, c)) = self.peek(0) {
-                return match c {
-                    '[' => self.section(),
-                    '|' => self.row(),
-                    '#' => self.comment(),
-                    _   => self.entry()
+            let c = match self.peek(0) {
+                Some((_, c)) => c,
+                None => return None,
+            };
+
+            if c == '[' {
+                let name = self.section_name();
+                match self.is_section_accepted(&name) {
+                    Some(true) => return Some(Element::Section(name)),
+                    Some(false) => is_section_accepted = false,
+                    None => return None,
                 };
-            } else {
-                return None;
             }
+            if !is_section_accepted {
+                self.skip_line();
+                continue;
+            }
+            return match c {
+                '|' => self.row(),
+                '#' => self.comment(),
+                _   => self.entry()
+            };
         }
     }
 }
 
 impl<'a> Parser<'a> {
     pub fn new(s: &'a str) -> Parser<'a> {
+        Self::new_filtered_opt(s, None)
+    }
+
+    pub fn new_filtered(s: &'a str, accepted_sections: Vec<&'a str>) -> Parser<'a> {
+        Self::new_filtered_opt(s, Some(accepted_sections))
+    }
+
+    fn new_filtered_opt(s: &'a str, accepted_sections: Option<Vec<&'a str>>) -> Parser<'a> {
         Parser {
             input: s,
             cur: s.char_indices(),
-            errors: Vec::new()
+            errors: Vec::new(),
+            accepted_sections,
         }
+
     }
 
     fn peek(&self, n: usize) -> Option<(usize, char)> {
@@ -85,6 +109,12 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn skip_line(&mut self) {
+        self.cur.by_ref()
+            .skip_while(|&(_, c)| c != '\n')
+            .next();
+    }
+
     fn comment(&mut self) -> Option<Element> {
         if !self.eat('#') { return None }
         let mut ret = String::new();
@@ -102,18 +132,13 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn section(&mut self) -> Option<Element> {
-        let mut name = String::new();
-
-        if self.eat('[') {
-            self.ws();
-            while let Some((_, ch)) = self.cur.next() {
-                if ch == ']' { break }
-                name.push(ch)
-            }
-        }
-
-        Some(Element::Section(name))
+    fn section_name(&mut self) -> String {
+        self.eat('[');
+        self.ws();
+        self.cur.by_ref()
+            .map(|(_, c)| c)
+            .take_while(|c| *c != ']')
+            .collect()
     }
 
     fn entry(&mut self) -> Option<Element> {
@@ -329,19 +354,39 @@ impl<'a> Parser<'a> {
                     name = Some(n.to_owned());
                     section = Section::new();
                 },
-
                 Element::Row(row) => section.rows.push(row),
                 Element::Entry(ref key, ref value) => { section.dictionary.insert(key.clone(), value.clone()); },
                 _ => continue
             };
         }
 
-        map.insert(name.unwrap_or("root".to_owned()), section);
+        match name {
+            Some(name) => map.insert(name, section),
+            None if self.accepted_sections.is_none() => map.insert("root".to_string(), section),
+            _ => None,
+        };
 
         if self.errors.len() > 0 {
             None
         } else {
             Some(map)
+        }
+    }
+
+    fn is_section_accepted(&mut self, name: &str) -> Option<bool> {
+        let sections = match self.accepted_sections {
+            Some(ref mut sections) => sections,
+            None => return Some(true),
+        };
+        if sections.is_empty() {
+            return None
+        }
+        match sections.iter().position(|s| *s == name) {
+            Some(idx) => {
+                sections.swap_remove(idx);
+                Some(true)
+            },
+            None => Some(false)
         }
     }
 }
@@ -374,62 +419,36 @@ impl fmt::Display for ParserError {
 
 #[cfg(test)]
 mod tests {
-
-    use { Ion, Parser, Value, Section };
-    use super::Element::{ self, Row, Entry, Comment };
+    use super::Element::{self, Row, Entry, Comment};
+    use {Parser, Value, Section};
     use std::collections::BTreeMap;
 
-    #[test]
-    fn empty_cell() {
-        let raw = r#"
-            [EMPTY]
-            |1||2|
-            |1|   |2|
-        "#;
-
-        let mut p = Parser::new(raw);
-        assert_eq!(Some(Element::Section("EMPTY".to_owned())), p.next());
-        assert_eq!(Some(Row(vec![Value::String("1".to_owned()), Value::String("".to_owned()), Value::String("2".to_owned())])), p.next());
-        assert_eq!(Some(Row(vec![Value::String("1".to_owned()), Value::String("".to_owned()), Value::String("2".to_owned())])), p.next());
-        assert_eq!(None, p.next());
-    }
-
-    #[test]
-    fn err_entry() {
-        let raw = r#"
-            [err]
-            key = 
-        "#;
-
-        let res : Result<Ion, _> = raw.parse();
-        assert!(res.is_err());
-    }
 
     #[test]
     fn parse() {
         let raw = r#"
-        [dict]
-        first = "first"
-        # comment
-        second ="another"
-        some_bool = true
+                [dict]
+                first = "first"
+                # comment
+                second ="another"
+                some_bool = true
 
-        ary = [ "col1", 2,"col3", false]
+                ary = [ "col1", 2,"col3", false]
 
-        [table]
+                [table]
 
-        |abc|def|
-        |---|---|
-        |one|two|
-        # comment
-        |  1| 2 |
-        |  2| 3 |
+                |abc|def|
+                |---|---|
+                |one|two|
+                # comment
+                |  1| 2 |
+                |  2| 3 |
 
-        [three]
-        a=1
-        B=2
-        | this |
-        "#;
+                [three]
+                a=1
+                B=2
+                | this |
+            "#;
 
         let mut p = Parser::new(raw);
 
@@ -440,12 +459,12 @@ mod tests {
         assert_eq!(Some(Entry("some_bool".to_owned(), Value::Boolean(true))), p.next());
         assert_eq!(Some(
             Entry("ary".to_owned(),
-                Value::Array(vec![
-                    Value::String("col1".to_owned()),
-                    Value::Integer(2),
-                    Value::String("col3".to_owned()),
-                    Value::Boolean(false)
-        ]))), p.next());
+                  Value::Array(vec![
+                      Value::String("col1".to_owned()),
+                      Value::Integer(2),
+                      Value::String("col3".to_owned()),
+                      Value::Boolean(false)
+                  ]))), p.next());
 
         assert_eq!(Some(Element::Section("table".to_owned())), p.next());
         assert_eq!(Some(Row(vec![Value::String("abc".to_owned()), Value::String("def".to_owned())])), p.next());
@@ -463,94 +482,471 @@ mod tests {
     }
 
     #[test]
-    fn no_section() {
-        let raw = r#"
-        foo = "bar"
-        "#;
-
-        let ion = Parser::new(raw).read().unwrap();
-        let s   = ion.get("root").unwrap();
-        assert_eq!(format!("{}", s), "foo = \"bar\"\n");
-    }
-
-    #[test]
-    fn string_ary() {
-        let raw = r#"
-        ary = ["WAW", "WRO"]"#;
-
-        let ion = Parser::new(raw).read().unwrap();
-        let s   = ion.get("root").unwrap();
-        assert_eq!(s.to_string(), "ary = [ \"WAW\", \"WRO\" ]\n");
-    }
-
-    #[test]
-    fn nested_dictionary() {
-        let raw = r#"
-        [dict]
-        ndict = { foo = "bar" }
-        "#;
-
-        let expected = {
-            let mut map = BTreeMap::new();
-            let mut sect = Section::new();
-            let mut dict = BTreeMap::new();
-            dict.insert("foo".to_owned(), Value::String("bar".to_owned()));
-            sect.dictionary.insert("ndict".to_owned(), Value::Dictionary(dict));
-            map.insert("dict".to_owned(), sect);
-            map
-        };
-
-        let mut p = Parser::new(raw);
-        assert_eq!(expected, p.read().unwrap());
-    }
-
-    #[test]
-    fn read() {
-        let raw = r#"
-        [SECTION]
-
-        key = "value"
-        # now a table
-        | col1 | col2|
-        | col1 | col2| # comment
-        | col1 | col2|
-        "#;
-
-        let expected = {
-            let mut map = BTreeMap::new();
-            let mut section = Section::new();
-            section.dictionary.insert("key".to_owned(), Value::String("value".to_owned()));
-            let mut row = Vec::new();
-            row.push(Value::String("col1".to_owned()));
-            row.push(Value::String("col2".to_owned()));
-            section.rows.push(row.clone());
-            section.rows.push(row.clone());
-            section.rows.push(row);
-            map.insert("SECTION".to_owned(), section);
-            map
-        };
-
-        let mut p = Parser::new(raw);
-        assert_eq!(expected, p.read().unwrap());
-    }
-
-    #[test]
-    fn dict_with_newline() {
-        let ion = ion!(r#"[TEST]
-    R75042 = {
-    view = "SV"
-    loc  = ["M", "B"]
-    dist = { beach_km = 4.1 }
-}"#);
-        assert_eq!("[TEST]\nR75042 = { dist = { beach_km = 4.1 }, loc = [ \"M\", \"B\" ], view = \"SV\" }\n\n", ion.to_string());
-    }
-
-    #[test]
     fn display() {
         assert_eq!(format!("{}", Value::String("foo".to_owned())), "foo");
         assert_eq!(format!("{}", Value::Integer(1)), "1");
         assert_eq!(format!("{}", Value::Boolean(true)), "true");
         let ary = Value::Array(vec![Value::Integer(1), Value::String("foo".to_owned())]);
         assert_eq!(format!("{}", ary), "[ 1, \"foo\" ]");
+    }
+
+    mod read {
+        use super::*;
+
+        mod when_parsing_without_filtering {
+            use super::*;
+
+            mod and_ion_has_root_section {
+                use super::*;
+
+                mod and_root_section_has_dictionary_with_string {
+                    use super::*;
+
+                    #[test]
+                    fn then_returns_dictionary() {
+                        let raw = r#"
+                            foo = "bar"
+                        "#;
+                        let mut p = Parser::new(raw);
+
+                        let actual = p.read().expect("Read failed");
+
+                        let mut expected = BTreeMap::new();
+                        let mut section = Section::new();
+                        section.dictionary.insert("foo".to_owned(), Value::String("bar".to_owned()));
+                        expected.insert("root".to_owned(), section);
+                        assert_eq!(expected, actual);
+                    }
+                }
+
+                mod and_root_section_has_dictionary_with_array {
+                    use super::*;
+
+                    #[test]
+                    fn then_returns_dictionary() {
+                        let raw = r#"
+                            arr = ["WAW", "WRO"]
+                        "#;
+                        let mut p = Parser::new(raw);
+
+                        let actual = p.read().expect("Read failed");
+
+                        let mut expected = BTreeMap::new();
+                        let mut section = Section::new();
+                        let array = vec![Value::String("WAW".to_owned()), Value::String("WRO".to_owned())];
+                        section.dictionary.insert("arr".to_owned(), Value::Array(array));
+                        expected.insert("root".to_owned(), section);
+                        assert_eq!(expected, actual);
+                    }
+                }
+
+                mod and_root_section_has_dictionary_with_dictionary {
+                    use super::*;
+
+                    #[test]
+                    fn then_returns_dictionary() {
+                        let raw = r#"
+                            ndict = { foo = "bar" }
+                        "#;
+                        let mut p = Parser::new(raw);
+
+                        let actual = p.read().expect("Read failed");
+
+                        let mut expected = BTreeMap::new();
+                        let mut section = Section::new();
+                        let mut dict = BTreeMap::new();
+                        dict.insert("foo".to_owned(), Value::String("bar".to_owned()));
+                        section.dictionary.insert("ndict".to_owned(), Value::Dictionary(dict));
+                        expected.insert("root".to_owned(), section);
+                        assert_eq!(expected, actual);
+                    }
+                }
+
+                mod and_root_section_has_dictionary_with_dictionary_with_new_lines {
+                    use super::*;
+
+                    #[test]
+                    fn then_returns_dictionary() {
+                        let raw = r#"
+                            R75042 = {
+                            view = "SV"
+                            loc  = ["M", "B"]
+                            dist = { beach_km = 4.1 }
+                        }"#;
+                        let mut p = Parser::new(raw);
+
+                        let actual = p.read().expect("Read failed");
+
+                        let mut expected = BTreeMap::new();
+                        let mut sect = Section::new();
+                        let mut dict = BTreeMap::new();
+                        dict.insert("view".to_owned(), Value::String("SV".to_owned()));
+                        let array = vec![Value::String("M".to_owned()), Value::String("B".to_owned())];
+                        dict.insert("loc".to_owned(), Value::Array(array));
+                        let mut dict_dict = BTreeMap::new();
+                        dict_dict.insert("beach_km".to_owned(), Value::Float(4.1));
+                        dict.insert("dist".to_owned(), Value::Dictionary(dict_dict));
+                        sect.dictionary.insert("R75042".to_owned(), Value::Dictionary(dict));
+                        expected.insert("root".to_owned(), sect);
+                        assert_eq!(expected, actual);
+                    }
+                }
+
+                mod and_root_section_has_dictionary_with_dictionary_with_no_value {
+                    use super::*;
+
+                    #[test]
+                    fn then_returns_error() {
+                        let raw = r#"
+                            key =
+                        "#;
+                        let mut p = Parser::new(raw);
+
+                        let actual = p.read();
+
+                        assert_eq!(None, actual);
+                    }
+                }
+
+                mod and_root_section_has_array {
+                    use super::*;
+
+                    #[test]
+                    fn then_returns_array() {
+                        let raw = r#"
+                            |1|2|
+                            |3|
+                        "#;
+                        let mut p = Parser::new(raw);
+
+                        let actual = p.read().expect("Read failed");
+
+                        let mut expected = BTreeMap::new();
+                        let mut sect = Section::new();
+                        sect.rows.push(vec![Value::String("1".to_owned()), Value::String("2".to_owned())]);
+                        sect.rows.push(vec![Value::String("3".to_owned())]);
+                        expected.insert("root".to_owned(), sect);
+                        assert_eq!(expected, actual);
+                    }
+                }
+
+                mod and_root_section_has_array_with_empty_cell {
+                    use super::*;
+
+                    #[test]
+                    fn then_returns_array_with_empty_strings_on_empty_cells() {
+                        let raw = r#"
+                            |1||2|
+                            |3|   |
+                        "#;
+                        let mut p = Parser::new(raw);
+
+                        let actual = p.read().expect("Read failed");
+
+                        let mut expected = BTreeMap::new();
+                        let mut sect = Section::new();
+                        sect.rows.push(vec![Value::String("1".to_owned()), Value::String("".to_owned()), Value::String("2".to_owned())]);
+                        sect.rows.push(vec![Value::String("3".to_owned()), Value::String("".to_owned())]);
+                        expected.insert("root".to_owned(), sect);
+                        assert_eq!(expected, actual);
+                    }
+                }
+            }
+
+            mod and_ion_has_section {
+                use super::*;
+
+                mod and_section_occurs_once {
+                    use super::*;
+
+                    #[test]
+                    fn then_returns_section() {
+                        let raw = r#"
+                            [SECTION]
+
+                            key = "value"
+                            # now a table
+                            | col1 | col2|
+                            | col1 | col2| # comment
+                            | col1 | col2|
+                        "#;
+
+                        let expected = {
+                            let mut map = BTreeMap::new();
+                            let mut section = Section::new();
+                            section.dictionary.insert("key".to_owned(), Value::String("value".to_owned()));
+                            let mut row = Vec::new();
+                            row.push(Value::String("col1".to_owned()));
+                            row.push(Value::String("col2".to_owned()));
+                            section.rows.push(row.clone());
+                            section.rows.push(row.clone());
+                            section.rows.push(row);
+                            map.insert("SECTION".to_owned(), section);
+                            map
+                        };
+
+                        let mut p = Parser::new(raw);
+                        assert_eq!(expected, p.read().unwrap());
+                    }
+                }
+
+                mod and_section_is_duplicated {
+                    use super::*;
+
+                    #[test]
+                    fn then_returns_last_occurance_of_section() {
+                        let raw = r#"
+                            [SECTION]
+                            1key = "1value"
+                            | 1col1 | 1col2|
+                            [SECTION]
+                            2key = "2value"
+                            | 2col1 | 2col2|
+                        "#;
+                        let mut p = Parser::new(raw);
+
+                        let actual = p.read().expect("Read failed");
+
+                        let mut expected = BTreeMap::new();
+                        let mut section = Section::new();
+                        section.dictionary.insert("2key".to_owned(), Value::String("2value".to_owned()));
+                        section.rows.push(vec![Value::String("2col1".to_string()), Value::String("2col2".to_string())]);
+                        expected.insert("SECTION".to_owned(), section);
+                        assert_eq!(expected, actual);
+                    }
+                }
+            }
+        }
+
+        mod when_parsing_with_filtering {
+            use super::*;
+
+            mod and_ion_has_root_section {
+                use super::*;
+
+                mod and_no_other_sections {
+                    use super::*;
+
+                    #[test]
+                    fn then_returns_nothing() {
+                        let raw = r#"
+                            nkey = "nvalue"
+                            | ncol1 | ncol2 |
+                        "#;
+                        let mut p = Parser::new_filtered(raw, vec!["ACCEPTED"]);
+
+                        let actual = p.read().expect("Read failed");
+
+                        let expected = BTreeMap::new();
+                        assert_eq!(expected, actual);
+                    }
+                }
+
+                mod and_then_accepted_section {
+                    use super::*;
+
+                    #[test]
+                    fn then_returns_accepted_section() {
+                        let raw = r#"
+                            nkey = "nvalue"
+                            | ncol1 | ncol2 |
+                            [ACCEPTED]
+                            key = "value"
+                            | col1 | col2|
+                        "#;
+                        let mut p = Parser::new_filtered(raw, vec!["ACCEPTED"]);
+
+                        let actual = p.read().expect("Read failed");
+
+                        let mut expected = BTreeMap::new();
+                        let mut section = Section::new();
+                        section.dictionary.insert("key".to_owned(), Value::String("value".to_owned()));
+                        section.rows.push(vec![Value::String("col1".to_string()), Value::String("col2".to_string())]);
+                        expected.insert("ACCEPTED".to_owned(), section);
+                        assert_eq!(expected, actual);
+                    }
+                }
+
+                mod and_then_filtered_section {
+                    use super::*;
+
+                    #[test]
+                    fn then_returns_nothing() {
+                        let raw = r#"
+                            nkey = "nvalue"
+                            | ncol1 | ncol2 |
+                            [FILTERED]
+                            key = "value"
+                            | col1 | col2|
+                        "#;
+                        let mut p = Parser::new_filtered(raw, vec!["ACCEPTED"]);
+
+                        let actual = p.read().expect("Read failed");
+
+                        let expected = BTreeMap::new();
+                        assert_eq!(expected, actual);
+                    }
+                }
+            }
+
+            mod and_ion_has_accepted_section {
+                use super::*;
+
+                mod and_no_other_sections {
+                    use super::*;
+
+                    #[test]
+                    fn then_returns_accepted_section() {
+                        let raw = r#"
+                            [ACCEPTED]
+                            key = "value"
+                            | col1 | col2|
+                        "#;
+                        let mut p = Parser::new_filtered(raw, vec!["ACCEPTED"]);
+
+                        let actual = p.read().expect("Read failed");
+
+                        let mut expected = BTreeMap::new();
+                        let mut section = Section::new();
+                        section.dictionary.insert("key".to_owned(), Value::String("value".to_owned()));
+                        section.rows.push(vec![Value::String("col1".to_string()), Value::String("col2".to_string())]);
+                        expected.insert("ACCEPTED".to_owned(), section);
+                        assert_eq!(expected, actual);
+                    }
+                }
+
+                mod and_then_filtered_section {
+                    use super::*;
+
+                    #[test]
+                    fn then_returns_accepted_section() {
+                        let raw = r#"
+                            [ACCEPTED]
+                            key = "value"
+                            | col1 | col2|
+                            [FILTERED]
+                            fkey = "fvalue"
+                            | fcol1 | fcol2|
+                        "#;
+                        let mut p = Parser::new_filtered(raw, vec!["ACCEPTED"]);
+
+                        let actual = p.read().expect("Read failed");
+
+                        let mut expected = BTreeMap::new();
+                        let mut section = Section::new();
+                        section.dictionary.insert("key".to_owned(), Value::String("value".to_owned()));
+                        section.rows.push(vec![Value::String("col1".to_string()), Value::String("col2".to_string())]);
+                        expected.insert("ACCEPTED".to_owned(), section);
+                        assert_eq!(expected, actual);
+                    }
+                }
+
+                mod and_then_duplicated_allowed_section {
+                    use super::*;
+
+                    mod and_it_is_the_only_accepted_section {
+                        use super::*;
+
+                        #[test]
+                        fn then_returns_first_occurance_of_accepted_section() {
+                            let raw = r#"
+                                [ACCEPTED]
+                                1key = "1value"
+                                | 1col1 | 1col2|
+                                [ACCEPTED]
+                                2key = "2value"
+                                | 2col1 | 2col2|
+                            "#;
+                            let mut p = Parser::new_filtered(raw, vec!["ACCEPTED"]);
+
+                            let actual = p.read().expect("Read failed");
+
+                            let mut expected = BTreeMap::new();
+                            let mut section = Section::new();
+                            section.dictionary.insert("1key".to_owned(), Value::String("1value".to_owned()));
+                            section.rows.push(vec![Value::String("1col1".to_string()), Value::String("1col2".to_string())]);
+                            expected.insert("ACCEPTED".to_owned(), section);
+                            assert_eq!(expected, actual);
+                        }
+                    }
+
+                    mod and_it_is_not_the_only_accepted_section {
+                        use super::*;
+
+                        #[test]
+                        fn then_returns_first_occurance_of_accepted_section() {
+                            let raw = r#"
+                                [ACCEPTED]
+                                1key = "1value"
+                                | 1col1 | 1col2|
+                                [ACCEPTED]
+                                2key = "2value"
+                                | 2col1 | 2col2|
+                            "#;
+                            let mut p = Parser::new_filtered(raw, vec!["ACCEPTED", "ANOTHER"]);
+
+                            let actual = p.read().expect("Read failed");
+
+                            let mut expected = BTreeMap::new();
+                            let mut section = Section::new();
+                            section.dictionary.insert("1key".to_owned(), Value::String("1value".to_owned()));
+                            section.rows.push(vec![Value::String("1col1".to_string()), Value::String("1col2".to_string())]);
+                            expected.insert("ACCEPTED".to_owned(), section);
+                            assert_eq!(expected, actual);
+                        }
+                    }
+                }
+            }
+
+            mod and_ion_has_filtered_section {
+                use super::*;
+
+                mod and_no_other_sections {
+                    use super::*;
+
+                    #[test]
+                    fn then_returns_nothing() {
+                        let raw = r#"
+                            [FILTERED]
+                            key = "value"
+                            | col1 | col2|
+                        "#;
+                        let mut p = Parser::new_filtered(raw, vec!["ACCEPTED"]);
+
+                        let actual = p.read().expect("Read failed");
+
+                        let expected = BTreeMap::new();
+                        assert_eq!(expected, actual);
+                    }
+                }
+
+
+                mod and_then_accepted_section {
+                    use super::*;
+
+                    #[test]
+                    fn then_returns_accepted_section() {
+                        let raw = r#"
+                            [FILTERED]
+                            fkey = "fvalue"
+                            | fcol1 | fcol2|
+                            [ACCEPTED]
+                            key = "value"
+                            | col1 | col2|
+                        "#;
+                        let mut p = Parser::new_filtered(raw, vec!["ACCEPTED"]);
+
+                        let actual = p.read().expect("Read failed");
+
+                        let mut expected = BTreeMap::new();
+                        let mut section = Section::new();
+                        section.dictionary.insert("key".to_owned(), Value::String("value".to_owned()));
+                        section.rows.push(vec![Value::String("col1".to_string()), Value::String("col2".to_string())]);
+                        expected.insert("ACCEPTED".to_owned(), section);
+                        assert_eq!(expected, actual);
+                    }
+                }
+            }
+        }
     }
 }

@@ -1,18 +1,5 @@
 #![feature(slice_patterns)]
 use std::collections::BTreeMap;
-#[cfg(feature = "serde")] extern crate serde;
-
-macro_rules! parse_next {
-    ($row:expr, $err:expr) => ({
-        match $row.next() {
-            Some(v) => match v.parse() {
-                Ok(v) => v,
-                Err(_) => return Err($err)
-            },
-            None => return Err($err)
-        }
-    })
-}
 
 #[macro_use] mod ion;
 mod parser;

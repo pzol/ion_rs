@@ -24,6 +24,18 @@ impl ParseRow for Row {
 mod tests {
     use ion::{FromRow, Value};
 
+    macro_rules! parse_next {
+        ($row:expr, $err:expr) => ({
+            match $row.next() {
+                Some(v) => match v.parse() {
+                    Ok(v) => v,
+                    Err(_) => return Err($err)
+                },
+                None => return Err($err)
+            }
+        })
+    }
+
     #[derive(Debug, PartialEq)]
     struct Foo {
         foo: u32,
