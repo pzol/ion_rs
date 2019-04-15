@@ -19,6 +19,9 @@ pub struct Parser<'a> {
     cur: str::CharIndices<'a>,
     pub errors: Vec<ParserError>,
     accepted_sections: Option<Vec<&'a str>>,
+    section_capacity: usize,
+    row_capacity: usize,
+    array_capacity: usize,
 }
 
 macro_rules! some {
@@ -76,12 +79,30 @@ impl<'a> Parser<'a> {
         Self::new_filtered_opt(s, Some(accepted_sections))
     }
 
+    pub fn with_section_capacity(mut self, section_capacity: usize) -> Self {
+        self.section_capacity = section_capacity;
+        self
+    }
+
+    pub fn with_row_capacity(mut self, row_capacity: usize) -> Self {
+        self.row_capacity = row_capacity;
+        self
+    }
+
+    pub fn with_array_capacity(mut self, array_capacity: usize) -> Self {
+        self.array_capacity = array_capacity;
+        self
+    }
+
     fn new_filtered_opt(s: &'a str, accepted_sections: Option<Vec<&'a str>>) -> Parser<'a> {
         Parser {
             input: s,
             cur: s.char_indices(),
             errors: Vec::new(),
             accepted_sections,
+            section_capacity: 16,
+            row_capacity: 8,
+            array_capacity: 2,
         }
 
     }
@@ -183,7 +204,7 @@ impl<'a> Parser<'a> {
 
     fn finish_array(&mut self) -> Option<Value> {
         self.cur.next();
-        let mut row = Vec::new();
+        let mut row = Vec::with_capacity(self.array_capacity);
 
         loop {
             self.ws();
@@ -292,7 +313,7 @@ impl<'a> Parser<'a> {
     }
 
     fn row(&mut self) -> Option<Element> {
-        let mut row  = Vec::new();
+        let mut row  = Vec::with_capacity(self.row_capacity);
         self.eat('|');
 
         loop {
@@ -315,7 +336,7 @@ impl<'a> Parser<'a> {
     pub fn read(&mut self) -> Option<BTreeMap<String, Section>> {
         let mut map = BTreeMap::new();
 
-        let mut section = Section::new();
+        let mut section = Section::with_capacity(self.section_capacity);
         let mut name    = None;
 
         while let Some(el) = self.next() {
@@ -325,7 +346,7 @@ impl<'a> Parser<'a> {
                         map.insert(name, section);
                     }
                     name = Some(n.to_owned());
-                    section = Section::new();
+                    section = Section::with_capacity(self.section_capacity);
                 },
                 Element::Row(row) => section.rows.push(row),
                 Element::Entry(ref key, ref value) => { section.dictionary.insert(key.clone(), value.clone()); },
