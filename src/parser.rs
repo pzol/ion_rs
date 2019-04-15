@@ -117,12 +117,8 @@ impl<'a> Parser<'a> {
 
     fn comment(&mut self) -> Option<Element> {
         if !self.eat('#') { return None }
-        let mut ret = String::new();
-        for (_, ch) in self.cur.by_ref() {
-            ret.push(ch);
-            if ch == '\n' { break }
-        }
-        Some(Element::Comment(ret))
+
+        Some(Element::Comment(self.slice_to_inc('\n').unwrap_or("").to_string()))
     }
 
     fn eat(&mut self, ch: char) -> bool {
@@ -150,17 +146,13 @@ impl<'a> Parser<'a> {
     }
 
     fn key_name(&mut self) -> Option<String> {
-        let mut ret = String::new();
-        while let Some((_, ch)) = self.cur.clone().next() {
-            match ch {
+        self.slice_while(|ch| match ch {
                 'a' ... 'z' |
                 'A' ... 'Z' |
                 '0' ... '9' |
-                '_' | '-' => { self.cur.next(); ret.push(ch) }
-                _ => break,
-            }
-        }
-        Some(ret)
+                '_' | '-' => true,
+                _ => false,
+        }).map(str::to_owned)
     }
 
     fn value(&mut self) -> Option<Value> {
@@ -246,8 +238,6 @@ impl<'a> Parser<'a> {
             None
         };
 
-        println!("{:?}.{:?}", prefix, decimal);
-
         let input = match decimal {
             Some(ref decimal) => prefix + "." + decimal,
             None          => prefix
@@ -261,15 +251,10 @@ impl<'a> Parser<'a> {
     }
 
     fn integer(&mut self) -> Option<String> {
-        let mut ret = String::new();
-        while let Some((_, ch)) = self.cur.clone().next() {
-            match ch {
-                '0' ... '9' => { self.cur.next(); ret.push(ch) },
-                _ => break
-            }
-        }
-
-        Some(ret)
+        self.slice_while(|ch| match ch {
+            '0' ... '9' => true,
+            _ => false
+        }).map(str::to_owned)
     }
 
     fn boolean(&mut self, start: usize) -> Option<Value> {
@@ -292,12 +277,7 @@ impl<'a> Parser<'a> {
 
     fn finish_string(&mut self) -> Option<Value> {
         self.cur.next();
-        let mut val = String::new();
-        while let Some((_, ch)) = self.cur.next() {
-            if ch == '"' { return Some(Value::String(val)); }
-            val.push(ch);
-        }
-        None
+        self.slice_to_exc('"').map(|s| Value::String(s.to_string()))
     }
 
     fn keyval_sep(&mut self) -> bool {
@@ -328,15 +308,8 @@ impl<'a> Parser<'a> {
     }
 
     fn cell(&mut self) -> String {
-        let mut ret = String::new();
         self.ws();
-
-        while let Some((_, ch)) = self.cur.next() {
-            if ch == '|' { break }
-            ret.push(ch)
-        }
-
-        ret.trim_right().to_owned()
+        self.slice_to_exc('|').map(str::trim_end).unwrap_or("").to_owned()
     }
 
     pub fn read(&mut self) -> Option<BTreeMap<String, Section>> {
@@ -389,6 +362,87 @@ impl<'a> Parser<'a> {
             None => Some(false)
         }
     }
+
+    // returns slice from the next character to `ch`, inclusive
+    // after this function, self.cur.next() returns the next character after `ch`
+    // None is only returned if the input is empty
+    // Examples:
+    // Parser::new("foObar").slice_to_inc('b') == Some("foOb"), self.cur.next() == (4, 'a')
+    // Parser::new("foObar").slice_to_inc('f') == Some("f"),    self.cur.next() == (1, 'o')
+    fn slice_to_inc(&mut self, ch: char) -> Option<&str> {
+        self.cur
+            .next()
+            .and_then(|(start, c)|
+                if c == ch {
+                    Some(&self.input[start..=start])
+                }
+                else {
+                    Some(
+                        self.cur
+                            .find(|(_, c)| *c == ch)
+                            .map_or(
+                                &self.input[start..],
+                                |(end, _)| &self.input[start..=end]
+                            )
+                    )
+                }
+            )
+    }
+
+    // returns slice from the next character to `ch`
+    // the result is exclusive (does not contain `ch`), but the functions consumes `ch`
+    // None is returned when the input is empty or when `ch` is the next character
+    // Examples:
+    // Parser::new("foObar").slice_to_exc('b') == Some("foO"), self.cur.next() == (4, 'a')
+    // Parser::new("foObar").slice_to_exc('f') == None,        self.cur.next() == (1, 'o')
+    fn slice_to_exc(&mut self, ch: char) -> Option<&str> {
+        self.cur
+            .next()
+            .and_then(|(start, c)|
+                if c == ch {
+                    None
+                }
+                else {
+                    Some(
+                        self.cur
+                            .find(|(_, c)| *c == ch)
+                            .map_or(
+                                &self.input[start..],
+                                |(end, _)| &self.input[start..end]
+                            )
+                    )
+                }
+            )
+    }
+
+    // returns slice from the next character to the last consecutive character matching the predicate
+    // the result is exclusive (does not contain `ch`) and does not consume `ch`
+    // None is returned when the input is empty or when `ch` is the next character
+    // Examples:
+    // Parser::new("foObar").slice_while(|c| c != 'b') == Some("foO"), self.cur.next() == (3, 'b')
+    // Parser::new("foObar").slice_while(|c| c != 'f') == None,        self.cur.next() == (0, 'f')
+    fn slice_while(&mut self, predicate: impl Fn(char) -> bool) -> Option<&str> {
+        self
+            .peek(0)
+            .and_then(|(start, c)|
+                if !predicate(c) {
+                    None
+                }
+                else {
+                    self.cur.next();
+
+                    while let Some((end, c)) = self.peek(0) {
+                        if !predicate(c) {
+                            return Some(&self.input[start..end]);
+                        }
+
+                        self.cur.next();
+                    }
+
+                    Some(&self.input[start..])
+                }
+            )
+    }
 }
 
 fn is_digit(c: char) -> bool {
@@ -423,6 +477,38 @@ mod tests {
     use {Parser, Value, Section};
     use std::collections::BTreeMap;
 
+    #[test]
+    fn slice_to_inc() {
+        let mut p = Parser::new("foObar");
+        assert_eq!(Some("foOb"), p.slice_to_inc('b'));
+        assert_eq!(Some((4, 'a')), p.cur.next());
+
+        let mut p = Parser::new("foObar");
+        assert_eq!(Some("f"), p.slice_to_inc('f'));
+        assert_eq!(Some((1, 'o')), p.cur.next());
+    }
+
+    #[test]
+    fn slice_to_exc() {
+        let mut p = Parser::new("foObar");
+        assert_eq!(Some("foO"), p.slice_to_exc('b'));
+        assert_eq!(Some((4, 'a')), p.cur.next());
+
+        let mut p = Parser::new("foObar");
+        assert_eq!(None, p.slice_to_exc('f'));
+        assert_eq!(Some((1, 'o')), p.cur.next());
+    }
+
+    #[test]
+    fn slice_while() {
+        let mut p = Parser::new("foObar");
+        assert_eq!(Some("foO"), p.slice_while(|c| c != 'b'));
+        assert_eq!(Some((3, 'b')), p.cur.next());
+
+        let mut p = Parser::new("foObar");
+        assert_eq!(None, p.slice_while(|c| c != 'f'));
+        assert_eq!(Some((0, 'f')), p.cur.next());
+    }
 
     #[test]
     fn parse() {
