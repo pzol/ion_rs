@@ -421,9 +421,8 @@ impl<'a> Parser<'a> {
             .next()
             .and_then(|(start, c)|
                 if c == ch {
-                    None
-                }
-                else {
+                    Some("")
+                } else {
                     Some(
                         self.cur
                             .find(|(_, c)| *c == ch)
@@ -538,6 +537,8 @@ mod tests {
                 first = "first"
                 # comment
                 second ="another"
+                whitespace = "  "
+                empty = ""
                 some_bool = true
 
                 ary = [ "col1", 2,"col3", false]
@@ -563,6 +564,8 @@ mod tests {
         assert_eq!(Some(Entry("first".to_owned(), Value::String("first".to_owned()))), p.next());
         assert_eq!(Some(Comment(" comment\n".to_owned())), p.next());
         assert_eq!(Some(Entry("second".to_owned(), Value::String("another".to_owned()))), p.next());
+        assert_eq!(Some(Entry("whitespace".to_owned(), Value::String("  ".to_owned()))), p.next());
+        assert_eq!(Some(Entry("empty".to_owned(), Value::String("".to_owned()))), p.next());
         assert_eq!(Some(Entry("some_bool".to_owned(), Value::Boolean(true))), p.next());
         assert_eq!(Some(
             Entry("ary".to_owned(),
