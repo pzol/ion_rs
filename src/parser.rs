@@ -515,7 +515,7 @@ mod tests {
         assert_eq!(Some((4, 'a')), p.cur.next());
 
         let mut p = Parser::new("foObar");
-        assert_eq!(None, p.slice_to_exc('f'));
+        assert_eq!(Some(""), p.slice_to_exc('f'));
         assert_eq!(Some((1, 'o')), p.cur.next());
     }
 
