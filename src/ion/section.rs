@@ -9,9 +9,13 @@ pub struct Section {
 
 impl Section {
     pub fn new() -> Section {
+        Self::with_capacity(1)
+    }
+
+    pub fn with_capacity(n: usize) -> Section {
         Section {
             dictionary: Dictionary::new(),
-            rows: Vec::new(),
+            rows: Vec::with_capacity(n),
         }
     }
 
