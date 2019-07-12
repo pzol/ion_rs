@@ -180,7 +180,7 @@ impl<'a> Parser<'a> {
         self.ws();
         self.newline();
         self.ws();
-        // if self.eat('"') { return self.finish_string(); }
+
         match self.cur.clone().next() {
             Some((_, '"')) => return self.finish_string(),
             Some((_, '[')) => return self.finish_array(),
@@ -209,7 +209,6 @@ impl<'a> Parser<'a> {
         loop {
             self.ws();
             if let Some((_, ch)) = self.peek(0) {
-
                 match ch {
                     ']' => { self.cur.next(); return Some(Value::Array(row)) },
                     ',' => { self.cur.next(); continue },
@@ -220,6 +219,8 @@ impl<'a> Parser<'a> {
                         }
                     }
                 }
+            } else {
+                break;
             }
         }
         None
@@ -244,6 +245,8 @@ impl<'a> Parser<'a> {
                         };
                     }
                 }
+            } else {
+                break;
             }
         }
         None
@@ -496,6 +499,42 @@ mod tests {
     use super::Element::{self, Row, Entry, Comment};
     use {Parser, Value, Section};
     use std::collections::BTreeMap;
+
+    #[test]
+    fn finish_string() {
+        let mut p = Parser::new("\"foObar\"");
+        assert_eq!(Some("foObar"), p.finish_string().unwrap().as_str());
+
+        let mut p = Parser::new("\"foObar");
+        assert_eq!(Some("foObar"), p.finish_string().unwrap().as_str());
+
+        let mut p = Parser::new("");
+        assert_eq!(None, p.finish_string());
+    }
+
+    #[test]
+    fn finish_array() {
+        let mut p = Parser::new("[\"a\"");
+        assert_eq!(None, p.finish_array());
+
+        let mut p = Parser::new("[\"a\"]");
+        assert_eq!(Some(Value::new_string_array("a")), p.finish_array());
+    }
+
+    #[test]
+    fn finish_dictionary() {
+        let mut p = Parser::new("{ foo = \"bar\"");
+        assert_eq!(None, p.finish_dictionary());
+
+        let mut p = Parser::new("{ foo = [\"bar\"");
+        assert_eq!(None, p.finish_dictionary());
+
+        let mut p = Parser::new("{ foo = [\"bar\"]");
+        assert_eq!(None, p.finish_dictionary());
+
+        let mut p = Parser::new("{ foo = [\"bar\"] }");
+        assert_eq!("{ foo = [ \"bar\" ] }", p.finish_dictionary().map(|d| d.to_string()).unwrap());
+    }
 
     #[test]
     fn slice_to_inc() {

@@ -1,0 +1,19 @@
+[dict]
+ary = [ "a", "b", 3 ]
+bool = true
+first = "first"
+second = "another"
+
+[mixed]
+B = 2
+a = 1
+| this | :) |
+| that |
+
+[table]
+| abc | def |
+| --- | --- |
+| one | two |
+| 1 | 2 |
+| 2 | 3 |
+
