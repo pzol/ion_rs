@@ -9,6 +9,10 @@ fn read_ion<T: AsRef<str>>(filename: T) -> ion::Ion {
     ion!(read_file(filename))
 }
 
+fn read_err_ion<T: AsRef<str>>(filename: T) -> ion::IonError {
+    read_file(filename).parse::<ion::Ion>().unwrap_err()
+}
+
 #[test]
 fn test_ion() {
     let ion = read_ion("tests/data/test.ion");
@@ -27,16 +31,16 @@ fn hotel_ion() {
 
 #[test]
 fn broken_array_and_eof() {
-    let ion = read_ion("tests/data/broken_array_and_eof.ion");
-    let expected = read_file("tests/expected/broken_array_and_eof.ion");
+    let ion_err = read_err_ion("tests/data/broken_array_and_eof.ion");
+    let expected = "ParserErrors([ParserError { lo: 55, hi: 55, desc: \"Cannot finish an array\" }])";
 
-    assert_eq!(expected, ion.to_string());
+    assert_eq!(expected, ion_err.to_string());
 }
 
 #[test]
 fn broken_dictionary_and_eof() {
-    let ion = read_ion("tests/data/broken_dictionary_and_eof.ion");
-    let expected = read_file("tests/expected/broken_dictionary_and_eof.ion");
+    let ion_err = read_err_ion("tests/data/broken_dictionary_and_eof.ion");
+    let expected = "ParserErrors([ParserError { lo: 67, hi: 67, desc: \"Cannot finish a dictionary\" }])";
 
-    assert_eq!(expected, ion.to_string());
+    assert_eq!(expected, ion_err.to_string());
 }

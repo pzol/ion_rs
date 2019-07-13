@@ -189,14 +189,7 @@ impl<'a> Parser<'a> {
             Some((pos, 't')) |
             Some((pos, 'f')) => self.boolean(pos),
             _ => {
-                let mut it = self.cur.clone();
-                let lo = it.next().map(|p| p.0).unwrap_or(self.input.len());
-                let hi = it.next().map(|p| p.0).unwrap_or(self.input.len());
-                self.errors.push(ParserError{
-                    lo: lo, hi: hi,
-                    desc: format!("expected a value")
-                });
-
+                self.add_error("Cannot read a value");
                 None
             }
         }
@@ -220,6 +213,7 @@ impl<'a> Parser<'a> {
                     }
                 }
             } else {
+                self.add_error("Cannot finish an array");
                 break;
             }
         }
@@ -246,6 +240,7 @@ impl<'a> Parser<'a> {
                     }
                 }
             } else {
+                self.add_error("Cannot finish a dictionary");
                 break;
             }
         }
@@ -465,6 +460,17 @@ impl<'a> Parser<'a> {
                     Some(&self.input[start..])
                 }
             )
+    }
+
+    fn add_error(&mut self, message: &str) {
+        let mut it = self.cur.clone();
+        let lo = it.next().map(|p| p.0).unwrap_or(self.input.len());
+        let hi = it.next().map(|p| p.0).unwrap_or(self.input.len());
+
+        self.errors.push(ParserError{
+            lo: lo, hi: hi,
+            desc: message.to_owned()
+        });
     }
 }
 
