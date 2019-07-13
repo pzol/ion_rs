@@ -497,7 +497,7 @@ impl fmt::Display for ParserError {
 #[cfg(test)]
 mod tests {
     use super::Element::{self, Row, Entry, Comment};
-    use {Parser, Value, Section};
+    use {Dictionary, Parser, Value, Section};
     use std::collections::BTreeMap;
 
     #[test]
@@ -508,6 +508,9 @@ mod tests {
         let mut p = Parser::new("\"foObar");
         assert_eq!(Some("foObar"), p.finish_string().unwrap().as_str());
 
+        let mut p = Parser::new("\"\"");
+        assert_eq!(Some(""), p.finish_string().unwrap().as_str());
+
         let mut p = Parser::new("");
         assert_eq!(None, p.finish_string());
     }
@@ -517,12 +520,27 @@ mod tests {
         let mut p = Parser::new("[\"a\"");
         assert_eq!(None, p.finish_array());
 
+        let mut p = Parser::new("[");
+        assert_eq!(None, p.finish_array());
+
+        let mut p = Parser::new("[]");
+        assert_eq!(Some(Value::Array(vec![])), p.finish_array());
+
         let mut p = Parser::new("[\"a\"]");
         assert_eq!(Some(Value::new_string_array("a")), p.finish_array());
     }
 
     #[test]
     fn finish_dictionary() {
+        let mut p = Parser::new("{");
+        assert_eq!(None, p.finish_dictionary());
+
+        let mut p = Parser::new("{ foo");
+        assert_eq!(None, p.finish_dictionary());
+
+        let mut p = Parser::new("{ foo = ");
+        assert_eq!(None, p.finish_dictionary());
+
         let mut p = Parser::new("{ foo = \"bar\"");
         assert_eq!(None, p.finish_dictionary());
 
@@ -531,6 +549,9 @@ mod tests {
 
         let mut p = Parser::new("{ foo = [\"bar\"]");
         assert_eq!(None, p.finish_dictionary());
+
+        let mut p = Parser::new("{}");
+        assert_eq!(Some(Value::Dictionary(Dictionary::new())), p.finish_dictionary());
 
         let mut p = Parser::new("{ foo = [\"bar\"] }");
         assert_eq!("{ foo = [ \"bar\" ] }", p.finish_dictionary().map(|d| d.to_string()).unwrap());
