@@ -180,7 +180,7 @@ impl<'a> Parser<'a> {
         self.ws();
         self.newline();
         self.ws();
-        // if self.eat('"') { return self.finish_string(); }
+
         match self.cur.clone().next() {
             Some((_, '"')) => return self.finish_string(),
             Some((_, '[')) => return self.finish_array(),
@@ -189,14 +189,7 @@ impl<'a> Parser<'a> {
             Some((pos, 't')) |
             Some((pos, 'f')) => self.boolean(pos),
             _ => {
-                let mut it = self.cur.clone();
-                let lo = it.next().map(|p| p.0).unwrap_or(self.input.len());
-                let hi = it.next().map(|p| p.0).unwrap_or(self.input.len());
-                self.errors.push(ParserError{
-                    lo: lo, hi: hi,
-                    desc: format!("expected a value")
-                });
-
+                self.add_error("Cannot read a value");
                 None
             }
         }
@@ -209,7 +202,6 @@ impl<'a> Parser<'a> {
         loop {
             self.ws();
             if let Some((_, ch)) = self.peek(0) {
-
                 match ch {
                     ']' => { self.cur.next(); return Some(Value::Array(row)) },
                     ',' => { self.cur.next(); continue },
@@ -220,6 +212,9 @@ impl<'a> Parser<'a> {
                         }
                     }
                 }
+            } else {
+                self.add_error("Cannot finish an array");
+                break;
             }
         }
         None
@@ -244,6 +239,9 @@ impl<'a> Parser<'a> {
                         };
                     }
                 }
+            } else {
+                self.add_error("Cannot finish a dictionary");
+                break;
             }
         }
         None
@@ -463,6 +461,17 @@ impl<'a> Parser<'a> {
                 }
             )
     }
+
+    fn add_error(&mut self, message: &str) {
+        let mut it = self.cur.clone();
+        let lo = it.next().map(|p| p.0).unwrap_or(self.input.len());
+        let hi = it.next().map(|p| p.0).unwrap_or(self.input.len());
+
+        self.errors.push(ParserError{
+            lo: lo, hi: hi,
+            desc: message.to_owned()
+        });
+    }
 }
 
 fn is_digit(c: char) -> bool {
@@ -494,8 +503,65 @@ impl fmt::Display for ParserError {
 #[cfg(test)]
 mod tests {
     use super::Element::{self, Row, Entry, Comment};
-    use {Parser, Value, Section};
+    use {Dictionary, Parser, Value, Section};
     use std::collections::BTreeMap;
+
+    #[test]
+    fn finish_string() {
+        let mut p = Parser::new("\"foObar\"");
+        assert_eq!(Some("foObar"), p.finish_string().unwrap().as_str());
+
+        let mut p = Parser::new("\"foObar");
+        assert_eq!(Some("foObar"), p.finish_string().unwrap().as_str());
+
+        let mut p = Parser::new("\"\"");
+        assert_eq!(Some(""), p.finish_string().unwrap().as_str());
+
+        let mut p = Parser::new("");
+        assert_eq!(None, p.finish_string());
+    }
+
+    #[test]
+    fn finish_array() {
+        let mut p = Parser::new("[\"a\"");
+        assert_eq!(None, p.finish_array());
+
+        let mut p = Parser::new("[");
+        assert_eq!(None, p.finish_array());
+
+        let mut p = Parser::new("[]");
+        assert_eq!(Some(Value::Array(vec![])), p.finish_array());
+
+        let mut p = Parser::new("[\"a\"]");
+        assert_eq!(Some(Value::new_string_array("a")), p.finish_array());
+    }
+
+    #[test]
+    fn finish_dictionary() {
+        let mut p = Parser::new("{");
+        assert_eq!(None, p.finish_dictionary());
+
+        let mut p = Parser::new("{ foo");
+        assert_eq!(None, p.finish_dictionary());
+
+        let mut p = Parser::new("{ foo = ");
+        assert_eq!(None, p.finish_dictionary());
+
+        let mut p = Parser::new("{ foo = \"bar\"");
+        assert_eq!(None, p.finish_dictionary());
+
+        let mut p = Parser::new("{ foo = [\"bar\"");
+        assert_eq!(None, p.finish_dictionary());
+
+        let mut p = Parser::new("{ foo = [\"bar\"]");
+        assert_eq!(None, p.finish_dictionary());
+
+        let mut p = Parser::new("{}");
+        assert_eq!(Some(Value::Dictionary(Dictionary::new())), p.finish_dictionary());
+
+        let mut p = Parser::new("{ foo = [\"bar\"] }");
+        assert_eq!("{ foo = [ \"bar\" ] }", p.finish_dictionary().map(|d| d.to_string()).unwrap());
+    }
 
     #[test]
     fn slice_to_inc() {

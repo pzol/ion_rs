@@ -1,8 +1,0 @@
-[ION::HOTEL]
-name = { type ="string", optional = false }
-category = { type = "float", optional = false }
-ptype = { type = "string", optional = false, values = [ "A", "H" ] }
-
-_table = { optional = false }
-room_name = { type = "string", column = true, optional = false }
-facilities = { type = "string", column = true, optional = false }

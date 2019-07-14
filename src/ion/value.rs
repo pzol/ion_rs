@@ -12,6 +12,18 @@ pub enum Value {
 }
 
 impl Value {
+    pub fn new_string(value: &str) -> Self {
+        Value::String(value.to_owned())
+    }
+
+    pub fn new_string_array(value: &str) -> Self {
+        Self::new_array(Self::new_string(value))
+    }
+
+    pub fn new_array(value: Value) -> Self {
+        Value::Array(vec![value])
+    }
+
     pub fn type_str(&self) -> &'static str {
         match *self {
             Value::String(..) => "string",

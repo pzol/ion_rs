@@ -1,14 +1,14 @@
 #[macro_export]
 macro_rules! ion {
     ($raw:expr) => ({
-        $raw.parse::<::ion::Ion>().unwrap()
+        $raw.parse::<::ion::Ion>().expect("Failed parsing to 'Ion'")
     })
 }
 
 #[macro_export]
 macro_rules! ion_filtered {
-    ($raw:expr, $accepted:expr) => {
-        ::ion::Ion::from_str_filtered($raw, $accepted).unwrap()
+    ($raw:expr, $accepted_sections:expr) => {
+        ::ion::Ion::from_str_filtered($raw, $accepted_sections).expect("Failed parsing by 'from_str_filtered' to 'Ion'")
     }
 }
 
