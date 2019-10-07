@@ -2,10 +2,6 @@ use std::collections::BTreeMap;
 use std::{ error, fmt, str };
 use { Section, Value };
 
-macro_rules! try {
-    ($e:expr) => (match $e { Some(s) => s, None => return None })
-}
-
 #[derive(Debug, PartialEq)]
 pub enum Element {
     Section(String),
@@ -249,10 +245,10 @@ impl<'a> Parser<'a> {
 
     fn number(&mut self) -> Option<Value> {
         let mut is_float = false;
-        let prefix = try!(self.integer());
+        let prefix = self.integer()?;
         let decimal = if self.eat('.') {
             is_float = true;
-            Some(try!(self.integer()))
+            Some(self.integer())?
         } else {
             None
         };

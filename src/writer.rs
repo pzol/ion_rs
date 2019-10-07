@@ -14,20 +14,20 @@ impl<W: Write> Writer<W> {
     }
 
     pub fn write(&mut self, text: &str) -> Result {
-        try!(self.writer.write(text.as_bytes()));
+        self.writer.write(text.as_bytes())?;
         Ok(())
     }
 
     pub fn section(&mut self, name: &str) -> Result {
-        try!(self.write("["));
-        try!(self.write(name));
+        self.write("[")?;
+        self.write(name)?;
         self.write("]\n")
     }
 
     pub fn key_value<'a, I: Into<String>>(&mut self, name: &str, value: I) -> Result {
-        try!(self.write(name));
-        try!(self.write(" = "));
-        try!(self.write(&value.into()));
+        self.write(name)?;
+        self.write(" = ")?;
+        self.write(&value.into())?;
         self.write("\n")
     }
 }
