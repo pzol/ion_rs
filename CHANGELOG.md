@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.5
+- Remove unused `slice_pattern` feature
+- Remove deprecated `try!` macro
+- Use inclusive range syntax
+
 ## 0.8.1
 - Add filtering of sections when loading ion
 
