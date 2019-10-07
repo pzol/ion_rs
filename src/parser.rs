@@ -164,9 +164,9 @@ impl<'a> Parser<'a> {
 
     fn key_name(&mut self) -> Option<String> {
         self.slice_while(|ch| match ch {
-                'a' ... 'z' |
-                'A' ... 'Z' |
-                '0' ... '9' |
+                'a' ..= 'z' |
+                'A' ..= 'Z' |
+                '0' ..= '9' |
                 '_' | '-' => true,
                 _ => false,
         }).map(str::to_owned)
@@ -267,7 +267,7 @@ impl<'a> Parser<'a> {
 
     fn integer(&mut self) -> Option<String> {
         self.slice_while(|ch| match ch {
-            '0' ... '9' => true,
+            '0' ..= '9' => true,
             _ => false
         }).map(str::to_owned)
     }
@@ -471,7 +471,7 @@ impl<'a> Parser<'a> {
 }
 
 fn is_digit(c: char) -> bool {
-    match c { '0' ... '9' => true, _ => false }
+    match c { '0' ..= '9' => true, _ => false }
 }
 
 #[derive(Clone, Debug)]
