@@ -1,4 +1,3 @@
-#![feature(slice_patterns)]
 use std::collections::BTreeMap;
 
 #[macro_use] mod ion;
