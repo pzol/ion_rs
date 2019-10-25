@@ -31,7 +31,7 @@ macro_rules! from_ion_value_int_impl {
              type Err = ::std::num::ParseIntError;
              fn from_ion(value: &Value) -> Result<Self, Self::Err> {
                 match value.as_string() {
-                    Some(s) => Ok(try!(s.parse())),
+                    Some(s) => Ok(s.parse()?),
                     None => "".parse()
                 }
              }
@@ -45,7 +45,7 @@ impl FromIon<Value> for bool {
     type Err = ::std::str::ParseBoolError;
     fn from_ion(value: &Value) -> Result<Self, Self::Err> {
         match value.as_string() {
-            Some(s) => Ok(try!(s.parse())),
+            Some(s) => Ok(s.parse()?),
             None => "".parse(),
         }
     }

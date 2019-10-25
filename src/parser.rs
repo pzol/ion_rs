@@ -2,10 +2,6 @@ use std::collections::BTreeMap;
 use std::{ error, fmt, str };
 use { Section, Value };
 
-macro_rules! try {
-    ($e:expr) => (match $e { Some(s) => s, None => return None })
-}
-
 #[derive(Debug, PartialEq)]
 pub enum Element {
     Section(String),
@@ -168,9 +164,9 @@ impl<'a> Parser<'a> {
 
     fn key_name(&mut self) -> Option<String> {
         self.slice_while(|ch| match ch {
-                'a' ... 'z' |
-                'A' ... 'Z' |
-                '0' ... '9' |
+                'a' ..= 'z' |
+                'A' ..= 'Z' |
+                '0' ..= '9' |
                 '_' | '-' => true,
                 _ => false,
         }).map(str::to_owned)
@@ -249,10 +245,10 @@ impl<'a> Parser<'a> {
 
     fn number(&mut self) -> Option<Value> {
         let mut is_float = false;
-        let prefix = try!(self.integer());
+        let prefix = self.integer()?;
         let decimal = if self.eat('.') {
             is_float = true;
-            Some(try!(self.integer()))
+            Some(self.integer())?
         } else {
             None
         };
@@ -271,7 +267,7 @@ impl<'a> Parser<'a> {
 
     fn integer(&mut self) -> Option<String> {
         self.slice_while(|ch| match ch {
-            '0' ... '9' => true,
+            '0' ..= '9' => true,
             _ => false
         }).map(str::to_owned)
     }
@@ -475,7 +471,7 @@ impl<'a> Parser<'a> {
 }
 
 fn is_digit(c: char) -> bool {
-    match c { '0' ... '9' => true, _ => false }
+    match c { '0' ..= '9' => true, _ => false }
 }
 
 #[derive(Clone, Debug)]
