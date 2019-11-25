@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::iter::Peekable;
 use std::{ error, fmt, str };
 use { Section, Value };
 
@@ -12,7 +13,7 @@ pub enum Element {
 
 pub struct Parser<'a> {
     input: &'a str,
-    cur: str::CharIndices<'a>,
+    cur: Peekable<str::CharIndices<'a>>,
     pub errors: Vec<ParserError>,
     accepted_sections: Option<Vec<&'a str>>,
     section_capacity: usize,
@@ -40,8 +41,8 @@ impl<'a> Iterator for Parser<'a> {
             self.ws();
             if self.newline() { continue }
 
-            let c = match self.peek(0) {
-                Some((_, c)) => c,
+            let c = match self.cur.peek() {
+                Some((_, c)) => *c,
                 None => return None,
             };
 
@@ -93,35 +94,42 @@ impl<'a> Parser<'a> {
     fn new_filtered_opt(s: &'a str, accepted_sections: Option<Vec<&'a str>>) -> Parser<'a> {
         Parser {
             input: s,
-            cur: s.char_indices(),
+            cur: s.char_indices().peekable(),
             errors: Vec::new(),
             accepted_sections,
             section_capacity: 16,
             row_capacity: 8,
             array_capacity: 2,
         }
-
     }
 
-    fn peek(&self, n: usize) -> Option<(usize, char)> {
-        self.cur.clone().skip(n).next()
-    }
-
-    fn ws(&mut self) -> bool {
-        let mut ret = false;
+    fn ws(&mut self) {
         loop {
-            match self.peek(0) {
-                Some((_, '\t')) | Some((_, ' ')) => { self.cur.next(); ret = true ;},
+            match self.cur.peek() {
+                Some((_, '\t')) | Some((_, ' ')) => { self.cur.next(); },
                 _ => break
             }
         }
-        ret
     }
 
     fn newline(&mut self) -> bool {
-        match self.peek(0) {
-            Some((_, '\n')) => { self.cur.next(); true },
-            Some((_, '\r')) if self.peek(1).map(|c| c.1) == Some('\n') => { self.cur.next(); self.cur.next(); true },
+        match self.cur.peek() {
+            Some((_, '\n')) => {
+                self.cur.next();
+                true
+            },
+
+            Some((_, '\r')) => {
+                self.cur.next();
+
+                match self.cur.peek() {
+                    Some((_, '\n')) => { self.cur.next(); },
+                    _ => (),
+                }
+
+                true
+            },
+
             _ => false
         }
     }
@@ -139,9 +147,9 @@ impl<'a> Parser<'a> {
     }
 
     fn eat(&mut self, ch: char) -> bool {
-        match self.peek(0) {
-            Some((_, c)) if c == ch => { self.cur.next(); true }
-            Some(_) | None => false
+        match self.cur.peek() {
+            Some((_, c)) if *c == ch => { self.cur.next(); true }
+            _ => false
         }
     }
 
@@ -177,13 +185,13 @@ impl<'a> Parser<'a> {
         self.newline();
         self.ws();
 
-        match self.cur.clone().next() {
+        match self.cur.peek() {
             Some((_, '"')) => return self.finish_string(),
             Some((_, '[')) => return self.finish_array(),
             Some((_, '{')) => return self.finish_dictionary(),
-            Some((_, ch)) if is_digit(ch) => self.number(),
+            Some((_, ch)) if is_digit(*ch) => self.number(),
             Some((pos, 't')) |
-            Some((pos, 'f')) => self.boolean(pos),
+            Some((pos, 'f')) => { let pos = *pos; self.boolean(pos) },
             _ => {
                 self.add_error("Cannot read a value");
                 None
@@ -197,7 +205,7 @@ impl<'a> Parser<'a> {
 
         loop {
             self.ws();
-            if let Some((_, ch)) = self.peek(0) {
+            if let Some((_, ch)) = self.cur.peek() {
                 match ch {
                     ']' => { self.cur.next(); return Some(Value::Array(row)) },
                     ',' => { self.cur.next(); continue },
@@ -222,7 +230,7 @@ impl<'a> Parser<'a> {
 
         loop {
             self.ws();
-            if let Some((_, ch)) = self.peek(0) {
+            if let Some((_, ch)) = self.cur.peek() {
                 match ch {
                     '}' => { self.cur.next(); return Some(Value::Dictionary(map)) },
                     ',' => { self.cur.next(); continue },
@@ -314,7 +322,7 @@ impl<'a> Parser<'a> {
             self.ws();
             if self.comment().is_some() { break } // this will eat and NOT return comments within tables
             if self.newline() { break }
-            if self.peek(0).is_none() { break }
+            if self.cur.peek().is_none() { break }
 
             row.push(Value::String(self.cell()));
         }
@@ -335,15 +343,15 @@ impl<'a> Parser<'a> {
 
         while let Some(el) = self.next() {
             match el {
-                Element::Section(ref n) => {
+                Element::Section(n) => {
                     if let Some(name) = name {
                         map.insert(name, section);
                     }
-                    name = Some(n.to_owned());
+                    name = Some(n);
                     section = Section::with_capacity(self.section_capacity);
                 },
                 Element::Row(row) => section.rows.push(row),
-                Element::Entry(ref key, ref value) => { section.dictionary.insert(key.clone(), value.clone()); },
+                Element::Entry(key, value) => { section.dictionary.insert(key, value); },
                 _ => continue
             };
         }
@@ -436,8 +444,9 @@ impl<'a> Parser<'a> {
     // Parser::new("foObar").slice_while(|c| c != 'b') == Some("foO"), self.cur.next() == (3, 'b')
     // Parser::new("foObar").slice_while(|c| c != 'f') == None,        self.cur.next() == (0, 'f')
     fn slice_while(&mut self, predicate: impl Fn(char) -> bool) -> Option<&str> {
-        self
-            .peek(0)
+        self.cur
+            .peek()
+            .cloned()
             .and_then(|(start, c)|
                 if !predicate(c) {
                     None
@@ -445,7 +454,7 @@ impl<'a> Parser<'a> {
                 else {
                     self.cur.next();
 
-                    while let Some((end, c)) = self.peek(0) {
+                    while let Some(&(end, c)) = self.cur.peek() {
                         if !predicate(c) {
                             return Some(&self.input[start..end]);
                         }

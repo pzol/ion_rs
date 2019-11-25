@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.8.6
+- Optimize parser a bit
+
 ## 0.8.5
 - Remove unused `slice_pattern` feature
 - Remove deprecated `try!` macro
@@ -9,7 +12,7 @@
 - Add filtering of sections when loading ion
 
 ## 0.8
-Drop unused / unfinished features
+- Drop unused / unfinished features
 - RustcDeserialize support
 - Validator (which wasn't working anyway)
 
