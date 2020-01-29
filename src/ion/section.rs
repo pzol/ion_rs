@@ -31,10 +31,11 @@ impl Section {
     pub fn rows_without_header(&self) -> &[Row] {
         if self.rows.len() > 1 {
             let row = &self.rows[1];
-            if let Some(Value::String(ref s)) = row.iter().next() {
-                if s.starts_with("-") {
-                    return &self.rows[2..];
-                }
+            if row.first().map_or(false, |v| match v {
+                Value::String(s) => s.chars().all(|c| c == '-' ),
+                _                => false
+            }) {
+                return &self.rows[2..];
             }
         }
 
@@ -202,5 +203,31 @@ mod tests {
 
         let rows = ion.get("FOO").unwrap().rows_without_header();
         assert_eq!(0, rows.len());
+    }
+
+    #[test]
+    fn does_not_skip_headers_when_second_row_starts_with_dash() {
+        let ion = ion!(r#"
+            [FOO]
+            | -1 | 2 | 3 |
+            | -1 | 2 | 3 |
+            | x  | y | z |
+        "#);
+
+        let rows = ion.get("FOO").unwrap().rows_without_header();
+        assert_eq!(3, rows.len());
+    }
+
+    #[test]
+    fn skips_headers_when_first_row_cell_contains_only_dashes() {
+        let ion = ion!(r#"
+            [FOO]
+            | -1 | 2  | 3  |
+            | -- | -- | -y |
+            | x  | y  | z  |
+        "#);
+
+        let rows = ion.get("FOO").unwrap().rows_without_header();
+        assert_eq!(1, rows.len());
     }
 }
