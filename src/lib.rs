@@ -1,3 +1,11 @@
+#[cfg(test)]
+extern crate quickcheck;
+#[cfg(test)]
+#[macro_use(quickcheck)]
+extern crate quickcheck_macros;
+#[cfg(test)]
+extern crate regex;
+
 use std::collections::BTreeMap;
 
 #[macro_use] mod ion;

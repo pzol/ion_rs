@@ -1,5 +1,5 @@
 use std::vec;
-use {Dictionary, FromIon, IonError, Value, Row};
+use {Dictionary, FromIon, IonError, Row, Value};
 
 #[derive(Debug, PartialEq)]
 pub struct Section {
@@ -70,7 +70,8 @@ impl<'a> IntoIterator for &'a Section {
     type IntoIter = IntoIter<Self::Item>;
     fn into_iter(self) -> Self::IntoIter {
         IntoIter {
-            iter: self.rows_without_header()
+            iter: self
+                .rows_without_header()
                 .iter()
                 .cloned()
                 .collect::<Vec<_>>()
@@ -83,21 +84,25 @@ impl IntoIterator for Section {
     type Item = Row;
     type IntoIter = IntoIter<Row>;
     fn into_iter(self) -> Self::IntoIter {
-        let has_header = self.rows
+        let has_header = self
+            .rows
             .iter()
             .skip(1)
             .take(1)
-            .take_while(|&v| if let Some(Value::String(ref s)) = v.iter().skip(1).next() {
-                s.starts_with("-")
-            } else {
-                false
+            .take_while(|&v| {
+                if let Some(Value::String(ref s)) = v.iter().skip(1).next() {
+                    s.starts_with("-")
+                } else {
+                    false
+                }
             })
             .next()
             .is_some();
 
         if has_header {
             IntoIter {
-                iter: self.rows
+                iter: self
+                    .rows
                     .into_iter()
                     .skip(2)
                     .collect::<Vec<_>>()
@@ -105,157 +110,70 @@ impl IntoIterator for Section {
             }
         } else {
             IntoIter {
-                iter: self.rows
-                    .into_iter(),
+                iter: self.rows.into_iter(),
             }
         }
-
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use Section;
+    use quickcheck::TestResult;
+    use regex::Regex;
+    use Ion;
 
-    #[test]
-    fn into_iter_ref_section() {
-        let ion = ion!(r#"
-            [FOO]
-            |1||2|
-            |1|   |2|
-            |1|2|3|
-        "#);
+    fn is_input_string_invalid(s: &str) -> bool {
+        // ion cell is invalid if it contains any of [\n \t|\r] or is entirely made out of hyphens
+        let disallowed_cell_contents: Regex = Regex::new("[\n \t\r|]|^-+$").expect("regex");
 
-        let section: &Section = ion.get("FOO").unwrap();
-        let rows: Vec<_> = section.into_iter().collect();
-        assert!(rows.len() == 3);
+        disallowed_cell_contents.is_match(s)
     }
 
-    #[test]
-    fn into_iter_section() {
-        let mut ion = ion!(r#"
-            [FOO]
-            |1||2|
-            |1|   |2|
-            |1|2|3|
-        "#);
-
-        let section: Section = ion.remove("FOO").unwrap();
-        let rows: Vec<_> = section.into_iter().collect();
-        assert_eq!(3, rows.len());
-    }
-
-
-    #[test]
-    fn into_iter_section_loop() {
-        let mut ion = ion!(r#"
-            [FOO]
-            |1||2|
-            |1|   |2|
-            |1|2|3|
-        "#);
-
-        let section: Section = ion.remove("FOO").unwrap();
-        let mut rows = Vec::new();
-        for row in section {
-            rows.push(row)
+    #[quickcheck]
+    fn when_headers_absent(item: String) -> TestResult {
+        if is_input_string_invalid(item.as_str()) {
+            return TestResult::discard();
         }
-        assert_eq!(3, rows.len());
+
+        let ion_str = format!(
+            r#"
+            [FOO]
+            |{item}|{item}|{item}|
+            |{item}|{item}|{item}|
+            |{item}|{item}|{item}|
+        "#,
+            item = item
+        );
+
+        let ion = ion_str.parse::<Ion>().expect("Format ion");
+
+        let section = ion.get("FOO").expect("Get section");
+
+        TestResult::from_bool(3 == section.rows_without_header().len())
     }
 
-    #[test]
-    fn into_iter_section_with_header() {
-        let mut ion = ion!(r#"
+    #[quickcheck]
+    fn when_headers_present(item: String) -> TestResult {
+        if is_input_string_invalid(item.as_str()) {
+            return TestResult::discard();
+        }
+
+        let ion_str = format!(
+            r#"
             [FOO]
-            | 1 | 2 | 3 |
-            |---|---|---|
-            |1||2|
-            |1|   |2|
-            |1|2|3|
-        "#);
+            |head1|head2|head3|
+            |-----|-----|-----|
+            |{item}|{item}|{item}|
+            |{item}|{item}|{item}|
+            |{item}|{item}|{item}|
+        "#,
+            item = item
+        );
 
-        let section: Section = ion.remove("FOO").unwrap();
-        let rows: Vec<_> = section.into_iter().collect();
-        assert_eq!(3, rows.len());
-    }
+        let ion = ion_str.parse::<Ion>().expect("Format ion");
 
-    #[test]
-    fn row_with_header() {
-        let ion = ion!(r#"
-            [FOO]
-            | 1 | 2 | 3 |
-            |---|---|---|
-            |1||2|
-            |1|   |2|
-        "#);
+        let section = ion.get("FOO").expect("Get section");
 
-        let rows = ion.get("FOO").unwrap().rows_without_header();
-        assert!(rows.len() == 2);
-    }
-
-    #[test]
-    fn no_rows_with_header() {
-        let ion = ion!(r#"
-            [FOO]
-            | 1 | 2 | 3 |
-            |---|---|---|
-        "#);
-
-        let rows = ion.get("FOO").unwrap().rows_without_header();
-        assert_eq!(0, rows.len());
-    }
-
-    #[test]
-    fn does_not_skip_headers_when_second_row_starts_with_dash() {
-        let ion = ion!(r#"
-            [FOO]
-            | -1 | 2 | 3 |
-            | -1 | 2 | 3 |
-            | x  | y | z |
-        "#);
-
-        let rows = ion.get("FOO").unwrap().rows_without_header();
-        assert_eq!(3, rows.len());
-    }
-
-    #[test]
-    fn skips_headers_when_first_row_cell_contains_only_dashes() {
-        let ion = ion!(r#"
-            [FOO]
-            | -1 | 2  | 3  |
-            | -- | -- | -y |
-            | x  | y  | z  |
-        "#);
-
-        let rows = ion.get("FOO").unwrap().rows_without_header();
-        assert_eq!(1, rows.len());
-    }
-
-    #[test]
-    fn reads_properly_empty_first_column() {
-        let ion = ion!(r#"
-            [FOO]
-            | -1 | 2  | 3  |
-            |    | -- | -y |
-            |    | y  | z  |
-        "#);
-
-        let rows = ion.get("FOO").unwrap().rows_without_header();
-        assert_eq!(3, rows.len());
-    }
-
-    #[test]
-    fn reads_properly_empty_first_column_and_headers_present() {
-        let ion = ion!(r#"
-            [FOO]
-            | v1 | v2 | v3 |
-            |----|----|----|
-            | -1 | 2  | 3  |
-            |    | -- | -y |
-            |    | y  | z  |
-        "#);
-
-        let rows = ion.get("FOO").unwrap().rows_without_header();
-        assert_eq!(3, rows.len());
+        TestResult::from_bool(3 == section.rows_without_header().len())
     }
 }
