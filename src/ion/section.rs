@@ -32,7 +32,7 @@ impl Section {
         if self.rows.len() > 1 {
             let row = &self.rows[1];
             if row.first().map_or(false, |v| match v {
-                Value::String(s) => s.chars().all(|c| c == '-' ),
+                Value::String(s) => !s.is_empty() && s.chars().all(|c| c == '-' ),
                 _                => false
             }) {
                 return &self.rows[2..];
@@ -229,5 +229,33 @@ mod tests {
 
         let rows = ion.get("FOO").unwrap().rows_without_header();
         assert_eq!(1, rows.len());
+    }
+
+    #[test]
+    fn reads_properly_empty_first_column() {
+        let ion = ion!(r#"
+            [FOO]
+            | -1 | 2  | 3  |
+            |    | -- | -y |
+            |    | y  | z  |
+        "#);
+
+        let rows = ion.get("FOO").unwrap().rows_without_header();
+        assert_eq!(3, rows.len());
+    }
+
+    #[test]
+    fn reads_properly_empty_first_column_and_headers_present() {
+        let ion = ion!(r#"
+            [FOO]
+            | v1 | v2 | v3 |
+            |----|----|----|
+            | -1 | 2  | 3  |
+            |    | -- | -y |
+            |    | y  | z  |
+        "#);
+
+        let rows = ion.get("FOO").unwrap().rows_without_header();
+        assert_eq!(3, rows.len());
     }
 }
