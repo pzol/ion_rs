@@ -32,8 +32,8 @@ impl Section {
         if self.rows.len() > 1 {
             let row = &self.rows[1];
             if row.first().map_or(false, |v| match v {
-                Value::String(s) => !s.is_empty() && s.chars().all(|c| c == '-' ),
-                _                => false
+                Value::String(s) => !s.is_empty() && s.chars().all(|c| c == '-'),
+                _ => false,
             }) {
                 return &self.rows[2..];
             }
@@ -120,7 +120,7 @@ impl IntoIterator for Section {
 mod tests {
     use quickcheck::TestResult;
     use regex::Regex;
-    use Ion;
+    use {Ion, Section};
 
     fn is_input_string_invalid(s: &str) -> bool {
         // ion cell is invalid if it contains any of [\n \t|\r] or is entirely made out of hyphens
@@ -129,51 +129,237 @@ mod tests {
         disallowed_cell_contents.is_match(s)
     }
 
-    #[quickcheck]
-    fn when_headers_absent(item: String) -> TestResult {
-        if is_input_string_invalid(item.as_str()) {
-            return TestResult::discard();
+    mod into_iter {
+        use super::*;
+
+        mod without_headers {
+            use super::*;
+
+            #[test]
+            fn it_works_on_ref_section() {
+                let ion = ion!(
+                    r#"
+                    [FOO]
+                    |1||2|
+                    |1|   |2|
+                    |1|2|3|
+                    "#
+                );
+
+                let section: &Section = ion.get("FOO").unwrap();
+                let rows: Vec<_> = section.into_iter().collect();
+                assert_eq!(3, rows.len());
+            }
+
+            #[test]
+            fn it_works_on_section_by_value() {
+                let mut ion = ion!(
+                    r#"
+                    [FOO]
+                    |1||2|
+                    |1|   |2|
+                    |1|2|3|
+                    "#
+                );
+
+                let section: Section = ion.remove("FOO").unwrap();
+                let rows: Vec<_> = section.into_iter().collect();
+                assert_eq!(3, rows.len());
+            }
+
+            #[test]
+            fn it_works_with_loop() {
+                let mut ion = ion!(
+                    r#"
+                    [FOO]
+                    |1||2|
+                    |1|   |2|
+                    |1|2|3|
+                    "#
+                );
+
+                let section: Section = ion.remove("FOO").unwrap();
+                let mut rows = Vec::new();
+                for row in section {
+                    rows.push(row);
+                }
+                assert_eq!(3, rows.len());
+            }
         }
 
-        let ion_str = format!(
-            r#"
-            [FOO]
-            |{item}|{item}|{item}|
-            |{item}|{item}|{item}|
-            |{item}|{item}|{item}|
-        "#,
-            item = item
-        );
+        mod with_headers {
+            use super::*;
 
-        let ion = ion_str.parse::<Ion>().expect("Format ion");
+            #[test]
+            fn it_works_with_section_by_value() {
+                let mut ion = ion!(
+                    r#"
+                    [FOO]
+                    | 1 | 2 | 3 |
+                    |---|---|---|
+                    |1||2|
+                    |1|   |2|
+                    |1|2|3|
+                    "#
+                );
 
-        let section = ion.get("FOO").expect("Get section");
+                let section: Section = ion.remove("FOO").unwrap();
+                let rows: Vec<_> = section.into_iter().collect();
 
-        TestResult::from_bool(3 == section.rows_without_header().len())
+                assert_eq!(3, rows.len());
+            }
+        }
     }
 
-    #[quickcheck]
-    fn when_headers_present(item: String) -> TestResult {
-        if is_input_string_invalid(item.as_str()) {
-            return TestResult::discard();
+    mod with_headers {
+        use super::*;
+
+        #[quickcheck]
+        fn works_for_any_arbitrary_cell_contents(item: String) -> TestResult {
+            if is_input_string_invalid(item.as_str()) {
+                return TestResult::discard();
+            }
+
+            let ion_str = format!(
+                r#"
+                [FOO]
+                |head1|head2|head3|
+                |-----|-----|-----|
+                |{item}|{item}|{item}|
+                |{item}|{item}|{item}|
+                |{item}|{item}|{item}|
+                "#,
+                item = item
+            );
+
+            let ion = ion_str.parse::<Ion>().expect("Format ion");
+
+            let section = ion.get("FOO").expect("Get section");
+
+            TestResult::from_bool(3 == section.rows_without_header().len())
         }
 
-        let ion_str = format!(
-            r#"
-            [FOO]
-            |head1|head2|head3|
-            |-----|-----|-----|
-            |{item}|{item}|{item}|
-            |{item}|{item}|{item}|
-            |{item}|{item}|{item}|
-        "#,
-            item = item
-        );
+        #[test]
+        fn cell_content_can_start_with_hyphen() {
+            let ion = ion!(
+                r#"
+                [FOO]
+                |head1|head2|head3|
+                |-----|-----|-----|
+                | -3  | emp | a   |
+                | -3  | -b  | b   |
+                | -3  | b   | -b  |
+                "#
+            );
 
-        let ion = ion_str.parse::<Ion>().expect("Format ion");
+            let section = ion.get("FOO").expect("Get section");
 
-        let section = ion.get("FOO").expect("Get section");
+            assert_eq!(3, section.rows_without_header().len())
+        }
 
-        TestResult::from_bool(3 == section.rows_without_header().len())
+        #[test]
+        fn cell_content_can_be_empty() {
+            let ion = ion!(
+                r#"
+                [FOO]
+                |head1|head2|head3|
+                |-----|-----|-----|
+                |     | emp | a   |
+                |     |     | b   |
+                |     | b   |     |
+                "#
+            );
+
+            let section = ion.get("FOO").expect("Get section");
+
+            assert_eq!(3, section.rows_without_header().len())
+        }
+
+        #[test]
+        fn section_can_have_no_content_rows() {
+            let ion = ion!(
+                r#"
+                [FOO]
+                |head1|head2|head3|
+                |-----|-----|-----|
+                "#
+            );
+
+            let section = ion.get("FOO").expect("Get section");
+
+            assert_eq!(0, section.rows_without_header().len())
+        }
+    }
+
+    mod without_headers {
+        use super::*;
+
+        #[quickcheck]
+        fn works_for_any_arbitrary_cell_contents(item: String) -> TestResult {
+            if is_input_string_invalid(item.as_str()) {
+                return TestResult::discard();
+            }
+
+            let ion_str = format!(
+                r#"
+                [FOO]
+                |{item}|{item}|{item}|
+                |{item}|{item}|{item}|
+                |{item}|{item}|{item}|
+                "#,
+                item = item
+            );
+
+            let ion = ion_str.parse::<Ion>().expect("Format ion");
+
+            let section = ion.get("FOO").expect("Get section");
+
+            TestResult::from_bool(3 == section.rows_without_header().len())
+        }
+
+        #[test]
+        fn cell_content_can_start_with_hyphen() {
+            let ion = ion!(
+                r#"
+                [FOO]
+                | -3  | emp | a   |
+                | -3  | -b  | b   |
+                | -3  | b   | -b  |
+                "#
+            );
+
+            let section = ion.get("FOO").expect("Get section");
+
+            assert_eq!(3, section.rows_without_header().len())
+        }
+
+        #[test]
+        fn cell_content_can_be_empty() {
+            let ion = ion!(
+                r#"
+                [FOO]
+                |     | emp | a   |
+                |     |     | b   |
+                |     | b   |     |
+                "#
+            );
+
+            let section = ion.get("FOO").expect("Get section");
+
+            assert_eq!(3, section.rows_without_header().len())
+        }
+
+        #[test]
+        fn section_can_have_no_content_rows() {
+            let ion = ion!(
+                r#"
+                [FOO]
+                "#
+            );
+
+            let section = ion.get("FOO").expect("Get section");
+
+            assert_eq!(0, section.rows_without_header().len())
+        }
     }
 }
