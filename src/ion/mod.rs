@@ -1,7 +1,7 @@
 #[macro_export]
 macro_rules! ion {
     ($raw:expr) => {{
-        $raw.parse::<crate::ion::Ion>()
+        $raw.parse::<$crate::Ion>()
             .expect("Failed parsing to 'Ion'")
     }};
 }
@@ -9,7 +9,7 @@ macro_rules! ion {
 #[macro_export]
 macro_rules! ion_filtered {
     ($raw:expr, $accepted_sections:expr) => {
-        crate::ion::Ion::from_str_filtered($raw, $accepted_sections)
+        $crate::Ion::from_str_filtered($raw, $accepted_sections)
             .expect("Failed parsing by 'from_str_filtered' to 'Ion'")
     };
 }
@@ -51,7 +51,7 @@ impl Ion {
 
     pub fn fetch(&self, key: &str) -> Result<&Section, IonError> {
         self.get(key)
-            .ok_or(IonError::MissingSection(key.to_owned()))
+            .ok_or_else(|| IonError::MissingSection(key.to_owned()))
     }
 
     /// Removes a `Section` from the ion structure and returning it

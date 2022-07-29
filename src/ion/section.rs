@@ -7,6 +7,12 @@ pub struct Section {
     pub rows: Vec<Row>,
 }
 
+impl Default for Section {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Section {
     pub fn new() -> Section {
         Self::with_capacity(1)
@@ -25,7 +31,8 @@ impl Section {
 
     /// like get, only returns a `Result`
     pub fn fetch(&self, key: &str) -> Result<&Value, IonError> {
-        self.get(key).ok_or(IonError::MissingValue(key.to_owned()))
+        self.get(key)
+            .ok_or_else(|| IonError::MissingValue(key.to_owned()))
     }
 
     pub fn rows_without_header(&self) -> &[Row] {
@@ -68,14 +75,11 @@ impl<T> Iterator for IntoIter<T> {
 impl<'a> IntoIterator for &'a Section {
     type Item = Row;
     type IntoIter = IntoIter<Self::Item>;
+
+    #[allow(clippy::unnecessary_to_owned)]
     fn into_iter(self) -> Self::IntoIter {
         IntoIter {
-            iter: self
-                .rows_without_header()
-                .iter()
-                .cloned()
-                .collect::<Vec<_>>()
-                .into_iter(),
+            iter: self.rows_without_header().to_vec().into_iter(),
         }
     }
 }
@@ -83,6 +87,7 @@ impl<'a> IntoIterator for &'a Section {
 impl IntoIterator for Section {
     type Item = Row;
     type IntoIter = IntoIter<Row>;
+
     fn into_iter(self) -> Self::IntoIter {
         let has_header = self
             .rows
@@ -90,8 +95,8 @@ impl IntoIterator for Section {
             .skip(1)
             .take(1)
             .take_while(|&v| {
-                if let Some(Value::String(ref s)) = v.iter().skip(1).next() {
-                    s.starts_with("-")
+                if let Some(Value::String(s)) = v.get(1).as_ref() {
+                    s.starts_with('-')
                 } else {
                     false
                 }
