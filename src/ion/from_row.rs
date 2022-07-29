@@ -1,5 +1,4 @@
-use Row;
-use ion::Value;
+use crate::{ion::Value, Row};
 
 pub trait FromRow: Sized {
     type Err;
@@ -22,18 +21,18 @@ impl ParseRow for Row {
 
 #[cfg(test)]
 mod tests {
-    use ion::{FromRow, Value};
+    use super::*;
 
     macro_rules! parse_next {
-        ($row:expr, $err:expr) => ({
+        ($row:expr, $err:expr) => {{
             match $row.next() {
                 Some(v) => match v.parse() {
                     Ok(v) => v,
-                    Err(_) => return Err($err)
+                    Err(_) => return Err($err),
                 },
-                None => return Err($err)
+                None => return Err($err),
             }
-        })
+        }};
     }
 
     #[derive(Debug, PartialEq)]
@@ -54,12 +53,17 @@ mod tests {
 
     #[test]
     fn from_row() {
-        let row: Vec<_> = "1|foo".split("|").map(|s| Value::String(s.to_owned())).collect();
+        let row: Vec<_> = "1|foo"
+            .split("|")
+            .map(|s| Value::String(s.to_owned()))
+            .collect();
         let foo = Foo::from_str_iter(row.iter()).unwrap();
-        assert_eq!(Foo {
-                       foo: 1,
-                       bar: "foo".to_owned(),
-                   },
-                   foo);
+        assert_eq!(
+            Foo {
+                foo: 1,
+                bar: "foo".to_owned(),
+            },
+            foo
+        );
     }
 }
