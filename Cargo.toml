@@ -6,6 +6,7 @@ license = "MIT"
 homepage = "http://github.com/pzol/ion_rs"
 repository = "http://github.com/pzol/ion_rs"
 authors = ["Piotr Zolnierek <pzolnierek@gmail.com>"]
+edition = "2021"
 
 [dev-dependencies]
 quickcheck = { version = "0.9.2", default-features = false }

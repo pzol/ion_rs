@@ -1,5 +1,5 @@
+use crate::{Dictionary, FromIon, IonError, Row, Value};
 use std::vec;
-use {Dictionary, FromIon, IonError, Row, Value};
 
 #[derive(Debug, PartialEq)]
 pub struct Section {
@@ -118,9 +118,10 @@ impl IntoIterator for Section {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::ion::Ion;
     use quickcheck::TestResult;
     use regex::Regex;
-    use {Ion, Section};
 
     fn is_input_string_invalid(s: &str) -> bool {
         // ion cell is invalid if it contains any of [\n \t|\r] or is entirely made out of hyphens

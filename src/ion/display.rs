@@ -1,5 +1,4 @@
-use {Ion, Section, Value};
-
+use crate::{Ion, Section, Value};
 use std::fmt;
 
 impl fmt::Display for Ion {

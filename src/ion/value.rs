@@ -1,5 +1,5 @@
+use crate::{Dictionary, FromIon, IonError, Row};
 use std::str::FromStr;
-use {Dictionary, FromIon, IonError, Row};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Value {
@@ -122,7 +122,7 @@ impl FromStr for Value {
 
 #[cfg(test)]
 mod tests {
-    use Value;
+    use super::*;
 
     #[test]
     fn integer() {

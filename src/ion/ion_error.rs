@@ -1,5 +1,5 @@
+use crate::parser::ParserError;
 use std::{error, fmt};
-use parser::ParserError;
 
 #[derive(Clone, Debug)]
 pub enum IonError {
