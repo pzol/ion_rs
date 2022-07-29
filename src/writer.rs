@@ -4,7 +4,7 @@ use std::{
     io::{self, Write},
 };
 
-pub type Result = io::Result<()>;
+pub type WriteResult = io::Result<usize>;
 
 pub struct Writer<W: Write> {
     writer: Box<W>,
@@ -15,18 +15,17 @@ impl<W: Write> Writer<W> {
         Writer { writer: w }
     }
 
-    pub fn write(&mut self, text: &str) -> Result {
-        self.writer.write(text.as_bytes())?;
-        Ok(())
+    pub fn write(&mut self, text: &str) -> WriteResult {
+        self.writer.write(text.as_bytes())
     }
 
-    pub fn section(&mut self, name: &str) -> Result {
+    pub fn section(&mut self, name: &str) -> WriteResult {
         self.write("[")?;
         self.write(name)?;
         self.write("]\n")
     }
 
-    pub fn key_value<'a, I: Into<String>>(&mut self, name: &str, value: I) -> Result {
+    pub fn key_value<I: Into<String>>(&mut self, name: &str, value: I) -> WriteResult {
         self.write(name)?;
         self.write(" = ")?;
         self.write(&value.into())?;
@@ -37,8 +36,8 @@ impl<W: Write> Writer<W> {
 impl<'a> convert::From<&'a Value> for String {
     fn from(v: &Value) -> String {
         match v {
-            &Value::String(ref s) => format!("\"{}\"", s),
-            &Value::Array(ref ary) => {
+            Value::String(ref s) => format!("\"{}\"", s),
+            Value::Array(ref ary) => {
                 let mut out = String::new();
                 let mut first = true;
                 out.push_str("[ ");

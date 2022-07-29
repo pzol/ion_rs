@@ -21,17 +21,6 @@ pub struct Parser<'a> {
     array_capacity: usize,
 }
 
-macro_rules! some {
-    ($expr:expr) => {{
-        let ret = $expr;
-        if let Some(value) = ret {
-            value
-        } else {
-            return None;
-        }
-    }};
-}
-
 impl<'a> Iterator for Parser<'a> {
     type Item = Element;
 
@@ -106,13 +95,8 @@ impl<'a> Parser<'a> {
     }
 
     fn ws(&mut self) {
-        loop {
-            match self.cur.peek() {
-                Some((_, '\t')) | Some((_, ' ')) => {
-                    self.cur.next();
-                }
-                _ => break,
-            }
+        while let Some((_, '\t')) | Some((_, ' ')) = self.cur.peek() {
+            self.cur.next();
         }
     }
 
@@ -126,11 +110,8 @@ impl<'a> Parser<'a> {
             Some((_, '\r')) => {
                 self.cur.next();
 
-                match self.cur.peek() {
-                    Some((_, '\n')) => {
-                        self.cur.next();
-                    }
-                    _ => (),
+                if let Some((_, '\n')) = self.cur.peek() {
+                    self.cur.next();
                 }
 
                 true
@@ -140,7 +121,9 @@ impl<'a> Parser<'a> {
         }
     }
 
+    #[allow(clippy::skip_while_next)]
     fn skip_line(&mut self) {
+        // suggested by clippy change `self.cur.by_ref().find(|(_, c)| *c != '\n');` slows down the parser in some cases twice
         self.cur.by_ref().skip_while(|&(_, c)| c != '\n').next();
     }
 
@@ -175,21 +158,17 @@ impl<'a> Parser<'a> {
     }
 
     fn entry(&mut self) -> Option<Element> {
-        let key = some!(self.key_name());
+        let key = self.key_name()?;
         if !self.keyval_sep() {
             return None;
         }
-        let val = some!(self.value());
 
-        Some(Element::Entry(key, val))
+        self.value().map(|val| Element::Entry(key, val))
     }
 
     fn key_name(&mut self) -> Option<String> {
-        self.slice_while(|ch| match ch {
-            'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-' => true,
-            _ => false,
-        })
-        .map(str::to_owned)
+        self.slice_while(|ch| matches!(ch, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-'))
+            .map(str::to_owned)
     }
 
     fn value(&mut self) -> Option<Value> {
@@ -198,9 +177,9 @@ impl<'a> Parser<'a> {
         self.ws();
 
         match self.cur.peek() {
-            Some((_, '"')) => return self.finish_string(),
-            Some((_, '[')) => return self.finish_array(),
-            Some((_, '{')) => return self.finish_dictionary(),
+            Some((_, '"')) => self.finish_string(),
+            Some((_, '[')) => self.finish_array(),
+            Some((_, '{')) => self.finish_dictionary(),
             Some((_, ch)) if is_digit(*ch) => self.number(),
             Some((pos, 't')) | Some((pos, 'f')) => {
                 let pos = *pos;
@@ -301,11 +280,8 @@ impl<'a> Parser<'a> {
     }
 
     fn integer(&mut self) -> Option<String> {
-        self.slice_while(|ch| match ch {
-            '0'..='9' => true,
-            _ => false,
-        })
-        .map(str::to_owned)
+        self.slice_while(|ch| matches!(ch, '0'..='9'))
+            .map(str::to_owned)
     }
 
     fn boolean(&mut self, start: usize) -> Option<Value> {
@@ -403,11 +379,7 @@ impl<'a> Parser<'a> {
             _ => None,
         };
 
-        if self.errors.len() > 0 {
-            None
-        } else {
-            Some(map)
-        }
+        self.errors.is_empty().then_some(map)
     }
 
     fn is_section_accepted(&mut self, name: &str) -> Option<bool> {
@@ -434,15 +406,13 @@ impl<'a> Parser<'a> {
     // Parser::new("foObar").slice_to_inc('b') == Some("foOb"), self.cur.next() == (4, 'a')
     // Parser::new("foObar").slice_to_inc('f') == Some("f"),    self.cur.next() == (1, 'o')
     fn slice_to_inc(&mut self, ch: char) -> Option<&str> {
-        self.cur.next().and_then(|(start, c)| {
+        self.cur.next().map(|(start, c)| {
             if c == ch {
-                Some(&self.input[start..=start])
+                &self.input[start..=start]
             } else {
-                Some(
-                    self.cur
-                        .find(|(_, c)| *c == ch)
-                        .map_or(&self.input[start..], |(end, _)| &self.input[start..=end]),
-                )
+                self.cur
+                    .find(|(_, c)| *c == ch)
+                    .map_or(&self.input[start..], |(end, _)| &self.input[start..=end])
             }
         })
     }
@@ -454,15 +424,13 @@ impl<'a> Parser<'a> {
     // Parser::new("foObar").slice_to_exc('b') == Some("foO"), self.cur.next() == (4, 'a')
     // Parser::new("foObar").slice_to_exc('f') == None,        self.cur.next() == (1, 'o')
     fn slice_to_exc(&mut self, ch: char) -> Option<&str> {
-        self.cur.next().and_then(|(start, c)| {
+        self.cur.next().map(|(start, c)| {
             if c == ch {
-                Some("")
+                ""
             } else {
-                Some(
-                    self.cur
-                        .find(|(_, c)| *c == ch)
-                        .map_or(&self.input[start..], |(end, _)| &self.input[start..end]),
-                )
+                self.cur
+                    .find(|(_, c)| *c == ch)
+                    .map_or(&self.input[start..], |(end, _)| &self.input[start..end])
             }
         })
     }
@@ -499,18 +467,15 @@ impl<'a> Parser<'a> {
         let hi = it.next().map(|p| p.0).unwrap_or(self.input.len());
 
         self.errors.push(ParserError {
-            lo: lo,
-            hi: hi,
+            lo,
+            hi,
             desc: message.to_owned(),
         });
     }
 }
 
 fn is_digit(c: char) -> bool {
-    match c {
-        '0'..='9' => true,
-        _ => false,
-    }
+    matches!(c, '0'..='9')
 }
 
 #[derive(Clone, Debug)]

@@ -1,7 +1,7 @@
 use crate::{Dictionary, FromIon, IonError, Row};
 use std::str::FromStr;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Value {
     String(String),
     Integer(i64),
@@ -43,10 +43,7 @@ impl Value {
     }
 
     pub fn is_string(&self) -> bool {
-        match *self {
-            Value::String(_) => true,
-            _ => false,
-        }
+        matches!(*self, Value::String(_))
     }
 
     pub fn as_str(&self) -> Option<&str> {
