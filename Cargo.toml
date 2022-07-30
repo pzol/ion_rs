@@ -5,7 +5,7 @@ description = "parse and process ion files"
 license = "MIT"
 homepage = "http://github.com/pzol/ion_rs"
 repository = "http://github.com/pzol/ion_rs"
-authors = ["Piotr Zolnierek <pzolnierek@gmail.com>"]
+authors = ["Marcin Szewczyk <platatita@gmail.com>", "Piotr Zolnierek <pzolnierek@gmail.com>"]
 edition = "2021"
 
 [dev-dependencies]
